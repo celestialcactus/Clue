@@ -105,6 +105,15 @@ test('SSE parser handles fragmented UTF-8, completion and truncated responses',a
 
 test('greetings do not inherit project evidence',()=>{for(const message of ['Hello there','Hi!','Good morning']){const intent=routeIntent({message,hasLibrary:true,selected:['doc'],hadSources:true});assert.equal(intent.documents,false);assert.equal(intent.smallTalk,true);assert.equal(intent.requestedWeb,false);}});
 
+test('ordinary chat sends the original question without an empty research wrapper',async()=>{
+ const f=fixture();try{
+  const message='Whats good my ninja ?';const {assistant}=f.store.begin(f.thread.id,message);let prompt;
+  await executeWorkflow({thread:f.thread,assistant,message,library:emptyLibrary,runtime:{...budgetModel,complete:async m=>{prompt=m;return 'Hey! What can I help with?';}},signal:signal()});
+  assert.equal(prompt.at(-1).content,message);assert.doesNotMatch(prompt.at(-1).content,/Source material|REQUIRED RESPONSE|earlier conversation/);
+  assert.match(prompt[0].content,/Respond naturally/);
+ }finally{f.cleanup();}
+});
+
 test('new conversations do not inherit actions, selected files, memory or web research',async()=>{
  const f=fixture();try{
   f.thread.selected=['old-doc'];f.thread.pendingAttachments=['old-doc'];f.thread.memory={summary:'OLD_PRIVATE_CONTEXT',covered:2};

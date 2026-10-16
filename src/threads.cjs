@@ -1,0 +1,88 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+
+const now = () => new Date().toISOString();
+function normalize(thread) {
+  return {
+    ...thread,
+    createdAt: thread.createdAt || now(), updatedAt: thread.updatedAt || now(),
+    projectId:thread.projectId||'default',selected: thread.selected || [], draft: thread.draft || '',
+    research: thread.research || { query: '', results: [], pages: [] },
+    memory: thread.memory || { summary: '', covered: 0 },
+    messages: (thread.messages || []).map(m => ({ id: randomUUID(), createdAt: now(), status: 'complete', activities: [], ...m })),
+  };
+}
+
+class ThreadStore {
+  constructor(dir) {
+    fs.mkdirSync(dir, { recursive: true });
+    this.file = path.join(dir, 'threads.json');
+    if (fs.existsSync(this.file)) {
+      this.data = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      if (![2,3].includes(this.data.version) || !Array.isArray(this.data.threads)) throw Error('Unrecognized thread data. Your files have been preserved.');
+      if(this.data.version===2&&!fs.existsSync(this.file+'.v2-backup'))fs.copyFileSync(this.file,this.file+'.v2-backup');
+    } else {
+      const legacy = path.join(dir, 'chats.json');
+      this.data = { version: 2, activeId: null, threads: fs.existsSync(legacy) ? JSON.parse(fs.readFileSync(legacy, 'utf8')) : [] };
+      // Keep the original chats.json intact as a migration backup.
+    }
+    this.data.threads = this.data.threads.map(normalize);
+    this.data.version=3;this.data.projects ||= [{id:'default',name:'My project',createdAt:now(),activeThreadId:this.data.activeId}];
+    this.data.activeProjectId ||= 'default';
+    for(const thread of this.data.threads)delete thread.webEnabled;
+    for (const thread of this.data.threads) {
+      for (const message of thread.messages) {
+        if (message.status === 'running') {
+          message.status = 'interrupted';
+          message.error = 'The app closed before this response finished. You can retry the request.';
+          for (const activity of message.activities) if (activity.status === 'running') activity.status = 'interrupted';
+        }
+      }
+    }
+    if (!this.get(this.data.activeId)||this.get(this.data.activeId).projectId!==this.data.activeProjectId) this.data.activeId = this.list()[0]?.id || null;
+    this.save();
+  }
+  save() {
+    fs.writeFileSync(this.file + '.tmp', JSON.stringify(this.data));
+    fs.renameSync(this.file + '.tmp', this.file);
+  }
+  get(id) { return this.data.threads.find(t => t.id === id); }
+  require(id) { const t = this.get(id); if (!t||t.projectId!==this.data.activeProjectId) throw Error('This conversation is not in the active project.'); return t; }
+  list() {
+    return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
+  }
+  create() {
+    const thread = normalize({ id: randomUUID(),projectId:this.data.activeProjectId, title: 'New conversation', messages: [] });
+    this.data.threads.unshift(thread);this.activate(thread.id);return thread;
+  }
+  activate(id) { const thread = this.require(id); this.data.activeId = id;this.project().activeThreadId=id; this.save(); return thread; }
+  project(){return this.data.projects.find(p=>p.id===this.data.activeProjectId);}
+  createProject(name){name=String(name||'').trim().slice(0,100);if(!name)throw Error('Enter a project name.');const project={id:randomUUID(),name,createdAt:now(),activeThreadId:null};this.data.projects.push(project);this.activateProject(project.id);return project;}
+  activateProject(id){const project=this.data.projects.find(p=>p.id===id);if(!project)throw Error('Project not found.');this.data.activeProjectId=id;this.data.activeId=this.get(project.activeThreadId)?.projectId===id?project.activeThreadId:this.list()[0]?.id||null;this.save();return project;}
+  renameProject(name){name=String(name||'').trim().slice(0,100);if(!name)throw Error('Enter a project name.');this.project().name=name;this.save();return this.project();}
+  update(id, patch) {
+    const thread = this.require(id);
+    if (typeof patch.title === 'string' && patch.title.trim()) thread.title = patch.title.trim().slice(0,100);
+    if (typeof patch.draft === 'string') thread.draft = patch.draft.slice(0,4000);
+    if (Array.isArray(patch.selected)) thread.selected = [...new Set(patch.selected.filter(s => typeof s === 'string'))];
+    this.save(); return thread;
+  }
+  remove(id) {
+    this.require(id);
+    this.data.threads = this.data.threads.filter(t => t.id !== id);
+    if (this.data.activeId === id) this.data.activeId = this.list()[0]?.id || null;
+    this.project().activeThreadId=this.data.activeId;
+    this.save();
+  }
+  begin(id, content) {
+    const thread = this.require(id);
+    if (!thread.messages.length && thread.title === 'New conversation') thread.title = content.slice(0,55);
+    const user = { id: randomUUID(), role: 'user', content, createdAt: now(), status: 'complete' };
+    const assistant = { id: randomUUID(), role: 'assistant', content: '', sources: [], activities: [], status: 'running', createdAt: now() };
+    thread.messages.push(user, assistant); thread.draft = ''; thread.updatedAt = now(); this.save();
+    return { thread, assistant };
+  }
+}
+module.exports = { ThreadStore };

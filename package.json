@@ -1,0 +1,62 @@
+{
+  "name": "desk-assistant",
+  "version": "0.3.0",
+  "description": "Private local document and research assistant",
+  "author": "Desk Assistant",
+  "private": true,
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "node scripts/dev.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "assets": "node scripts/prepare-assets.cjs",
+    "assets:embeddings": "node scripts/prepare-embeddings.cjs",
+    "build": "node scripts/check-assets.cjs && electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
+    "cheerio": "1.1.2",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^2.4.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "electron": "^44.8.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "local.desk.assistant",
+    "productName": "Desk Assistant",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/runtime",
+        "to": "runtime"
+      },
+      {
+        "from": "assets/model",
+        "to": "model"
+      },
+      {
+        "from": "assets/embeddings",
+        "to": "embeddings"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

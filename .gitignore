@@ -1,0 +1,10 @@
+node_modules/
+dist/
+assets/runtime/
+assets/model/
+assets/downloads/
+assets/embeddings/
+.dev-data/
+.dev-session.json
+*.log
+.test-data/

@@ -3,7 +3,8 @@ const {words,lexicalRank}=require('./retrieval.cjs');
 // into other projects or turn assistant assertions into established facts.
 function projectHistory(store,threadId,query){
  const active=store.require(threadId),passages=[];
- for(const thread of store.data.threads.filter(t=>t.projectId===active.projectId&&t.id!==active.id)){
+ if(!active.projectId)return [];
+ for(const thread of store.data.threads.filter(t=>t.projectId===active.projectId&&t.id!==active.id&&t.shareWithProject===true)){
   for(const message of thread.messages.filter(m=>['user','assistant'].includes(m.role)&&(!m.status||m.status==='complete')&&m.content)){
    for(let offset=0;offset<message.content.length;offset+=1000){const text=message.content.slice(offset,offset+1100),tokens=words(thread.title+' '+text),freq={};for(const token of tokens)freq[token]=(freq[token]||0)+1;
     passages.push({threadId:thread.id,messageId:message.id,offset,text,tokens,freq,date:message.createdAt||thread.updatedAt,label:`${thread.title} · ${message.role==='user'?'User statement':'Assistant response (may be mistaken)'} · ${message.createdAt||thread.updatedAt}`});}

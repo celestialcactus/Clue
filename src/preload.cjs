@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('desk',{
  status:()=>ipcRenderer.invoke('status'),import:()=>ipcRenderer.invoke('import'),remove:id=>ipcRenderer.invoke('remove',id),
  searchChats:query=>ipcRenderer.invoke('chat-search',query),
  importDropped:(files,chatId)=>ipcRenderer.invoke('import-dropped',Array.from(files,file=>webUtils.getPathForFile(file)),chatId),
+ moveChat:(id,projectId)=>ipcRenderer.invoke('chat-move',id,projectId),
  newChat:projectId=>ipcRenderer.invoke('chat-new',projectId),load:id=>ipcRenderer.invoke('chat-load',id),update:(id,patch)=>ipcRenderer.invoke('chat-update',id,patch),deleteChat:id=>ipcRenderer.invoke('chat-delete',id),
  dropProject:(id,files=[],documentId)=>ipcRenderer.invoke('project-drop',id,Array.from(files,file=>webUtils.getPathForFile(file)),documentId),
  newProject:name=>ipcRenderer.invoke('project-create',name),loadProject:(id,threadId)=>ipcRenderer.invoke('project-load',id,threadId),renameProject:name=>ipcRenderer.invoke('project-rename',name),

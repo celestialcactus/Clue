@@ -1,7 +1,7 @@
 const {app,BrowserWindow,ipcMain,dialog,session,shell}=require('electron');
 const path=require('node:path');const fs=require('node:fs');
 const {Runtime}=require('./runtime.cjs');const {Embeddings}=require('./embeddings.cjs');const {ProjectLibraries}=require('./projects.cjs');
-const {ThreadStore}=require('./threads.cjs');const {executeWorkflow}=require('./workflow.cjs');
+const {ThreadStore}=require('./threads.cjs');const {projectHistory}=require('./project-memory.cjs');const {executeWorkflow}=require('./workflow.cjs');
 
 const {searchWeb,readWeb}=require('./web.cjs');
 const processStartedAt=Number(process.env.DESK_DEV_STARTED)||Date.now();
@@ -18,7 +18,7 @@ if(locked)app.whenReady().then(()=>{
  app.setAppUserModelId('local.desk.assistant');
  const dir=app.getPath('userData');
  const assets=app.isPackaged?process.resourcesPath:path.join(__dirname,'../assets');
- try{store=new ThreadStore(dir);embedder=new Embeddings(assets);libraries=new ProjectLibraries(dir,embedder);if(!store.data.activeId)store.create(null);library=libraries.getThread(store.get(store.data.activeId));}
+ try{store=new ThreadStore(dir);embedder=new Embeddings(assets);libraries=new ProjectLibraries(dir,embedder,store);if(!store.data.activeId)store.create(null);library=libraries.getThread(store.get(store.data.activeId));}
  catch(e){dialog.showErrorBox('Local data could not be opened',e.message+'\nExisting data has not been replaced.');app.quit();return;}
  runtime=new Runtime(assets);
  if(!app.isPackaged&&process.env.DESK_DEV_RELOAD){const reloadFile=path.join(dir,'reload.request');let seen=processStartedAt;fs.watchFile(reloadFile,{interval:500},stat=>{if(stat.mtimeMs>seen){seen=stat.mtimeMs;app.quit();}});app.on('before-quit',()=>fs.unwatchFile(reloadFile));}
@@ -32,6 +32,7 @@ if(locked)app.whenReady().then(()=>{
  handle('status',()=>({ready:!!runtime.ready,state:runtime.state,model:'Qwen2.5 · 1.5B · Q4',retrievalState:embedder.state,documents:library.list(),chats:store.list(),activeId:store.data.activeId,projects:store.projectTree(),recents:store.recents(),activeProjectId:store.data.activeProjectId}));
  handle('project-create',name=>{idle();store.createProject(name);const thread=store.create();library=libraries.getThread(thread);return thread;});
  handle('project-load',(id,threadId)=>{idle();if(threadId&&store.get(threadId)?.projectId!==id)throw Error('Conversation not found in this project.');store.activateProject(id);const thread=threadId?store.activate(threadId):store.data.activeId?store.activate(store.data.activeId):store.create();library=libraries.getThread(thread);return thread;});
+ handle('chat-move', (id,projectId)=>{idle();const moved=store.moveToProject(id,projectId);library=libraries.getThread(store.get(store.data.activeId));return moved;});
  handle('project-drop',async(projectId,files,documentId)=>{
   idle();if(!store.data.projects.some(p=>p.id===projectId))throw Error('Project not found.');
   if(!Array.isArray(files)||files.length>20||(!files.length&&!documentId))throw Error('Drop between 1 and 20 documents.');
@@ -65,7 +66,7 @@ if(locked)app.whenReady().then(()=>{
  handle('chat-search',query=>store.search(query));
  handle('chat-load',id=>{idle();const thread=store.activate(id);library=libraries.getThread(thread);return thread;});
  handle('chat-update',(id,patch)=>{idle();if(!patch||typeof patch!=='object')throw Error('Invalid conversation settings.');return store.update(id,patch);});
- handle('chat-delete',id=>{idle();store.remove(id);return store.data.activeId;});
+ handle('chat-delete',id=>{idle();store.remove(id);if(!store.data.activeId)store.create(null);library=libraries.getThread(store.get(store.data.activeId));return store.data.activeId;});
  handle('web-clear',id=>{idle();const thread=store.require(id);thread.research={query:'',results:[],pages:[]};thread.publicTopic='';thread.ignorePriorWeb=true;thread.pendingWeb=false;store.save();return thread;});
  handle('cancel',()=>active?.controller.abort());
  handle('ask',async payload=>{
@@ -79,7 +80,7 @@ if(locked)app.whenReady().then(()=>{
   emit({type:'started',threadId:thread.id,thread});
   let lastSave=Date.now();
   try{
-   const result=await executeWorkflow({thread,assistant,message,library,runtime,searchWeb,readWeb,projectName:store.project()?.name||'',signal,save:()=>store.save(),
+   const result=await executeWorkflow({thread,assistant,message,library,runtime,searchWeb,readWeb,projectName:store.project()?.name||'',getProjectHistory:()=>projectHistory(store,thread.id,message),signal,save:()=>store.save(),
     onActivity:activity=>emit({type:'activity',threadId:thread.id,messageId:assistant.id,activity}),
     onDelta:delta=>{assistant.content+=delta;emit({type:'delta',threadId:thread.id,messageId:assistant.id,delta});if(Date.now()-lastSave>1000){store.save();lastSave=Date.now();}},
    });

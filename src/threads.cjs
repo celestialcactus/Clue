@@ -55,6 +55,16 @@ class ThreadStore {
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
   }
   recents(){return [...this.data.threads].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId})=>({id,title,updatedAt,projectId}));}
+  moveToProject(id,projectId){
+    const thread=this.get(id),project=this.data.projects.find(p=>p.id===projectId);
+    if(!thread||!project)throw Error('Conversation or project not found.');
+    const previous=this.data.projects.find(p=>p.id===thread.projectId);
+    thread.projectId=projectId;thread.shareWithProject=true;thread.updatedAt=now();
+    if(previous&&previous.id!==projectId&&previous.activeThreadId===id)previous.activeThreadId=this.data.threads.find(t=>t.projectId===previous.id)?.id||null;
+    project.activeThreadId=id;
+    if(this.data.activeId===id)this.data.activeProjectId=projectId;
+    this.save();return thread;
+  }
   projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt})=>({id,title,updatedAt}))}));}
   search(query='') {
     const term=String(query).trim().toLowerCase().slice(0,200);

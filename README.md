@@ -43,9 +43,9 @@ The interface uses locally bundled [shadcn/ui](https://ui.shadcn.com/docs/compon
 
 ## Conversation and project boundaries
 
-Chat transcripts, memory, web results, action history and chat attachments stay within their own thread. Cross-thread history retrieval is disabled, including within a project. New conversation and Recents + create standalone chats with no project. Only a project’s own New conversation action creates a project chat.
+Chat transcripts, memory, web results, action history and chat attachments stay within their own thread. Cross-thread history stays private unless a chat is explicitly dropped onto a project. New conversation and Recents + create standalone chats with no project. Only a project’s own New conversation action creates a project chat.
 
-Files dropped into the middle chat pane (or imported through Add files) are stored in that conversation’s library. To share a file, drag it from File Explorer, its attachment card, a sent file card, or its preview title onto a project row. This copies it into that project’s shared library; the original chat remains independent. Other project chats can retrieve shared files, but cannot retrieve another chat’s private attachments or messages. Existing project assignments and previously stored project files are preserved; they are not automatically moved or deleted.
+Files dropped into the middle chat pane (or imported through Add files) are stored in that conversation’s library. To share a file, drag it from File Explorer, its attachment card, a sent file card, or its preview title onto a project row. This copies it into that project’s shared library; the original chat remains independent. Drag a chat from Recents or another project onto a project row to move it there and share its history and private files. Other chats in the destination project can retrieve relevant completed messages with attribution and read that chat’s files, including later additions. The chat keeps its messages, draft and attachments. Shared thread files stay in their original storage; moving the thread again changes which project can retrieve them. Unmoved chats remain private. Existing project assignments and previously stored project files are preserved; they are not automatically moved or deleted.
 
 Generation uses modest frequency/presence penalties and a streaming repetition guard. A third consecutive repetition of a substantial phrase stops generation, releases the response stream, and adds an incomplete-answer notice. It does not silently restart or present the truncated answer as exhaustive.
 
@@ -107,6 +107,7 @@ node scripts/smoke-context.cjs
 node scripts/smoke-ui.cjs
 node scripts/smoke-drop.cjs
 node scripts/smoke-projects.cjs
+node scripts/smoke-thread-move.cjs
 ```
 
 Unit tests cover migration, project/thread isolation, notes, formats, retrieval ranking, query guards, routing, compaction budgeting, action failures, cancellation and streaming. The smoke scripts exercise the real local embedding model, local LLM, and Electron UI using isolated `.test-data/` profiles. The UI smoke uses live public research, so network availability affects that check. `scripts/smoke-package.cjs` is reserved for a future freshly built package.
@@ -115,4 +116,4 @@ Unit tests cover migration, project/thread isolation, notes, formats, retrieval 
 
 Target: Windows 10/11 x64 CPU. An 8 GB RAM computer with several GB free disk space is a provisional starting point, not a measured minimum. The small 1.5B model favors lower resource use over reasoning accuracy. Performance and quality still need testing on the intended computer. Scanned PDFs need OCR before import; legacy `.doc` and image OCR are not supported. Imports are limited to 40 MB. The router is deterministic, so unusual language may need rephrasing. This is a research assistant, not an automated compliance determination.
 
-Recents lists standalone and project conversations in update order. Hover project rows for New conversation and a menu (open, rename, new conversation); Recents also has a new-chat action. New chats clear the preview. Greetings skip document retrieval; cross-thread history is disabled. Substantive answers request fuller explanations and include a short supporting-passages section in the response instead of a separate evidence accordion.
+Recents lists standalone and project conversations in update order. Hover project rows for New conversation and a menu (open, rename, new conversation); Recents also has a new-chat action. New chats clear the preview. Greetings skip document retrieval; only explicitly shared threads contribute project history. Substantive answers request fuller explanations and include a short supporting-passages section in the response instead of a separate evidence accordion.

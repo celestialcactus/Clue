@@ -97,3 +97,5 @@ createRoot(document.getElementById('source-folder-root')!).render(<SourceFolderS
 
 function ComposerTools(){const state=useWorkspace();return <Button id="composer-add" variant="ghost" size="icon" type="button" disabled={state.busy||state.taskPending} title="Attach files" aria-label="Attach files" onClick={()=>window.workspaceUI.importFiles()}><Plus/></Button>}
 createRoot(document.getElementById('composer-tools-root')!).render(<ComposerTools/>);
+
+import './chat-menu'

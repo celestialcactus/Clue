@@ -1,5 +1,6 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('desk',{
+ manageChat:(id,patch)=>ipcRenderer.invoke('chat-manage',id,patch),archives:()=>ipcRenderer.invoke('chat-archives'),pinProject:(id,pinned)=>ipcRenderer.invoke('project-pin',id,pinned),
  activity:()=>ipcRenderer.invoke('activity-list'),
  status:()=>ipcRenderer.invoke('status'),import:chatId=>ipcRenderer.invoke('import',chatId),remove:id=>ipcRenderer.invoke('remove',id),
  searchChats:query=>ipcRenderer.invoke('chat-search',query),

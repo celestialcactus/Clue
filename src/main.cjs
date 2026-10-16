@@ -38,6 +38,9 @@ if(locked)app.whenReady().then(()=>{
  runtime.start().catch(e=>{runtime.state='Unable to start local model: '+e.message;});
  const handle=(name,fn)=>ipcMain.handle(name,async(event,...args)=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame)throw Error('Unauthorized request');return fn(...args);});
  handle('activity-list',()=>store.activityList());
+ handle('chat-archives',()=>store.archiveList());
+ handle('chat-manage',(id,patch)=>{if(!patch||typeof patch!=='object')throw Error('Invalid settings.');if('archived' in patch)idle();const value=store.manage(id,patch);if(!store.data.activeId)store.create(null);library=libraries.getThread(store.get(store.data.activeId));return value;});
+ handle('project-pin',(id,pinned)=>store.pinProject(id,pinned));
  handle('status',()=>({ready:!!runtime.ready,state:runtime.state,model:'Qwen2.5 · 1.5B · Q4',retrievalState:embedder.state,documents:library.list(),chats:store.list(),activeId:store.data.activeId,projects:store.projectTree(),recents:store.recents(),activeProjectId:store.data.activeProjectId}));
  const folderChoice=token=>{if(!token)return null;const folderPath=folderChoices.get(token);if(!folderPath)throw Error('Choose the folder again.');if(!fs.statSync(folderPath).isDirectory())throw Error('Source folder is unavailable.');return {id:randomUUID(),path:folderPath,state:'pending',count:0,errors:[]};};
  const syncFolder=async project=>syncSourceFolder(project,libraries.getFolder(project.id,project.sourceFolder.id),{save:()=>store.save(),progress:event=>emit({type:'folder-progress',...event})});
@@ -47,7 +50,7 @@ if(locked)app.whenReady().then(()=>{
  handle('project-source-refresh',async id=>{idle();const project=store.data.projects.find(p=>p.id===id);if(!project?.sourceFolder)throw Error('No source folder selected.');importing=true;try{return await syncFolder(project);}finally{importing=false;library=libraries.getThread(store.get(store.data.activeId));}});
  handle('project-source-open',async id=>{const folder=store.data.projects.find(p=>p.id===id)?.sourceFolder;if(!folder)throw Error('No source folder selected.');const error=await shell.openPath(folder.path);if(error)throw Error(error);});
  handle('project-load',(id,threadId)=>{navigable();if(threadId&&store.get(threadId)?.projectId!==id)throw Error('Conversation not found in this project.');store.activateProject(id);const thread=threadId?store.activate(threadId):store.data.activeId?store.activate(store.data.activeId):store.create();library=libraries.getThread(thread);return thread;});
- handle('chat-move', (id,projectId)=>{idle();const moved=store.moveToProject(id,projectId);library=libraries.getThread(store.get(store.data.activeId));return moved;});
+ handle('chat-move', (id,projectId)=>{idle();const moved=store.moveToProject(id,projectId);const available=new Set(libraries.getThread(moved).list().map(d=>d.id));moved.selected=moved.selected.filter(id=>available.has(id));moved.pendingAttachments=moved.pendingAttachments.filter(id=>available.has(id));store.save();library=libraries.getThread(store.get(store.data.activeId));return moved;});
  handle('project-drop',async(projectId,files,documentId)=>{
   idle();if(!store.data.projects.some(p=>p.id===projectId))throw Error('Project not found.');
   if(!Array.isArray(files)||files.length>20||(!files.length&&!documentId))throw Error('Drop between 1 and 20 documents.');
@@ -95,7 +98,7 @@ if(locked)app.whenReady().then(()=>{
   return jobs.enqueue({thread,message,attachments,library:target,projectName:store.project()?.name||'',getProjectHistory:()=>structuredClone(history)});
  });
  handle('open-source',async raw=>{const url=new URL(raw);if(url.protocol!=='https:')throw Error('Only HTTPS sources can be opened.');const known=store.data.threads.filter(t=>t.projectId===store.data.activeProjectId).some(t=>t.research.results.some(r=>r.url===raw)||t.messages.some(m=>m.sources?.some(s=>s.url===raw)));if(!known)throw Error('Unknown source');await shell.openExternal(url.href);});
- handle('export',async id=>{const thread=store.require(id);const result=await dialog.showSaveDialog(win,{defaultPath:'Conversation.txt',filters:[{name:'Text file',extensions:['txt']}]});if(result.canceled)return;fs.writeFileSync(result.filePath,thread.messages.map(m=>`${m.role==='user'?'You':'Assistant'}\n${m.content}${m.error?'\n'+m.error:''}\n${(m.sources||[]).map(s=>`[${s.citation}] ${s.label}${s.url?' — '+s.url:''}\n${s.text}`).join('\n\n')}`).join('\n\n----------------\n\n'));});
+ handle('export',async id=>{const thread=store.get(id);if(!thread)throw Error('Conversation not found.');const result=await dialog.showSaveDialog(win,{defaultPath:'Conversation.txt',filters:[{name:'Text file',extensions:['txt']}]});if(result.canceled)return;fs.writeFileSync(result.filePath,thread.messages.map(m=>`${m.role==='user'?'You':'Assistant'}\n${m.content}${m.error?'\n'+m.error:''}\n${(m.sources||[]).map(s=>`[${s.citation}] ${s.label}${s.url?' — '+s.url:''}\n${s.text}`).join('\n\n')}`).join('\n\n----------------\n\n'));});
 });
 app.on('window-all-closed',()=>app.quit());
 app.on('before-quit',()=>{jobs?.close();try{store?.save();}catch{}runtime?.stop();});

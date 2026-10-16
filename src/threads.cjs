@@ -54,10 +54,10 @@ class ThreadStore {
   get(id) { return this.data.threads.find(t => t.id === id); }
   require(id) { const t = this.get(id); if (!t||t.projectId!==this.data.activeProjectId) throw Error('This conversation is not in the active project.'); return t; }
   list() {
-    return this.data.threads.filter(t=>hasContext(t)&&t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
+    return this.data.threads.filter(t=>hasContext(t)&&!t.archived&&t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
   }
-  recents(){return this.data.threads.filter(hasContext).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId})=>({id,title,updatedAt,projectId}));}
+  recents(){return this.data.threads.filter(t=>hasContext(t)&&!t.archived).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId,pinned})=>({id,title,updatedAt,projectId,pinned:!!pinned}));}
   activityList(){
     const items=[];
     for(const thread of this.data.threads)for(const message of thread.messages){
@@ -70,18 +70,18 @@ class ThreadStore {
   }
   moveToProject(id,projectId){
     const thread=this.get(id),project=this.data.projects.find(p=>p.id===projectId);
-    if(!thread||!project)throw Error('Conversation or project not found.');
+    if(!thread||(projectId!==null&&!project))throw Error('Conversation or project not found.');
     const previous=this.data.projects.find(p=>p.id===thread.projectId);
-    thread.projectId=projectId;thread.shareWithProject=true;thread.updatedAt=now();
-    if(previous&&previous.id!==projectId&&previous.activeThreadId===id)previous.activeThreadId=this.data.threads.find(t=>t.projectId===previous.id)?.id||null;
-    project.activeThreadId=id;
+    thread.projectId=projectId;thread.shareWithProject=projectId!==null;thread.updatedAt=now();
+    if(previous&&previous.id!==projectId&&previous.activeThreadId===id)previous.activeThreadId=this.data.threads.find(t=>!t.archived&&t.projectId===previous.id)?.id||null;
+    if(project)project.activeThreadId=id;
     if(this.data.activeId===id)this.data.activeProjectId=projectId;
     this.save();return thread;
   }
-  projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>hasContext(t)&&t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt})=>({id,title,updatedAt}))}));}
+  projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>hasContext(t)&&!t.archived&&t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,pinned,projectId})=>({id,title,updatedAt,pinned:!!pinned,projectId}))}));}
   search(query='') {
     const term=String(query).trim().toLowerCase().slice(0,200);
-    return this.data.threads.filter(hasContext)
+    return this.data.threads.filter(t=>hasContext(t)&&!t.archived)
       .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
       .flatMap(t=>{const hit=t.messages.find(m=>m.content?.toLowerCase().includes(term));if(term&&!t.title.toLowerCase().includes(term)&&!hit)return[];
         const text=hit?.content||t.messages.find(m=>m.content)?.content||'';const start=term?Math.max(0,text.toLowerCase().indexOf(term)-45):0;
@@ -95,7 +95,7 @@ class ThreadStore {
   activate(id) { const thread = this.get(id);if(!thread)throw Error('Conversation not found.');this.data.activeProjectId=thread.projectId; this.data.activeId = id;if(this.project())this.project().activeThreadId=id; this.save(); return thread; }
   project(){return this.data.projects.find(p=>p.id===this.data.activeProjectId);}
   createProject(name){name=String(name||'').trim().slice(0,100);if(!name)throw Error('Enter a project name.');const project={id:randomUUID(),name,createdAt:now(),activeThreadId:null};this.data.projects.push(project);this.activateProject(project.id);return project;}
-  activateProject(id){const project=this.data.projects.find(p=>p.id===id);if(!project)throw Error('Project not found.');this.data.activeProjectId=id;this.data.activeId=this.get(project.activeThreadId)?.projectId===id?project.activeThreadId:this.list()[0]?.id||null;this.save();return project;}
+  activateProject(id){const project=this.data.projects.find(p=>p.id===id);if(!project)throw Error('Project not found.');this.data.activeProjectId=id;this.data.activeId=this.get(project.activeThreadId)?.projectId===id&&!this.get(project.activeThreadId)?.archived?project.activeThreadId:this.list()[0]?.id||null;this.save();return project;}
   renameProject(name){name=String(name||'').trim().slice(0,100);if(!name)throw Error('Enter a project name.');this.project().name=name;this.save();return this.project();}
   update(id, patch) {
     const thread = this.require(id);
@@ -105,12 +105,22 @@ class ThreadStore {
     if (Array.isArray(patch.pendingAttachments))thread.pendingAttachments=[...new Set(patch.pendingAttachments.filter(id=>thread.selected.includes(id)))];
     this.save(); return thread;
   }
+  archiveList(){return this.data.threads.filter(t=>hasContext(t)&&t.archived).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,projectId,pinned})=>({id,title,projectId,pinned:!!pinned,archived:true}));}
+  manage(id,patch){
+    const thread=this.get(id);if(!thread||!hasContext(thread))throw Error('Saved conversation not found.');
+    if(typeof patch.title==='string'){const title=patch.title.trim().slice(0,100);if(!title)throw Error('Enter a conversation name.');thread.title=title;}
+    if(typeof patch.pinned==='boolean')thread.pinned=patch.pinned;
+    if(typeof patch.archived==='boolean'){thread.archived=patch.archived;if(thread.archived)this.detachActive(id);}
+    this.save();return thread;
+  }
+  pinProject(id,pinned){const project=this.data.projects.find(p=>p.id===id);if(!project)throw Error('Project not found.');if(typeof pinned!=='boolean')throw Error('Invalid pin setting.');project.pinned=pinned;this.save();return project;}
+  detachActive(id){
+    for(const project of this.data.projects)if(project.activeThreadId===id)project.activeThreadId=this.data.threads.find(t=>t.id!==id&&!t.archived&&hasContext(t)&&t.projectId===project.id)?.id||null;
+    if(this.data.activeId===id)this.data.activeId=this.list().find(t=>t.id!==id)?.id||null;
+  }
   remove(id) {
-    this.require(id);
-    this.data.threads = this.data.threads.filter(t => t.id !== id);
-    if (this.data.activeId === id) this.data.activeId = this.list()[0]?.id || null;
-    if(this.project())this.project().activeThreadId=this.data.activeId;
-    this.save();
+    if(!this.get(id))throw Error('Conversation not found.');
+    this.detachActive(id);this.data.threads=this.data.threads.filter(t=>t.id!==id);this.save();
   }
   begin(id, content, attachments=[]) {
     const thread = this.require(id);

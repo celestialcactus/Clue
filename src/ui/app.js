@@ -130,3 +130,23 @@ function finishResize(e){if(!dragging)return;dragging=false;document.body.classL
 divider.onpointerup=finishResize;divider.onpointercancel=finishResize;
 divider.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();applyPaneWidth(paneWidth+(e.key==='ArrowLeft'?24:-24));localStorage.setItem('preview-width',String(paneWidth));}else if(e.key==='Enter'){e.preventDefault();toggleFiles(false);$('toggle-files')?.focus();}};
 window.workspaceUI={snapshot:()=>({documents,chats,projectId,projectName:projects.find(p=>p.id===projectId)?.name||'My project',busy,paneOpen:!$('files-pane').hidden}),searchChats:query=>window.desk.searchChats(query),preview:showDocument,openChat,removeFile,importFiles,togglePane:toggleFiles};
+const chatDropPane=document.querySelector('main');
+const dropOverlay=el('div',null,'chat-drop-overlay');dropOverlay.id='chat-drop-overlay';dropOverlay.hidden=true;dropOverlay.setAttribute('aria-hidden','true');dropOverlay.append(el('strong','Drop documents here'),el('span','Add to this project and use in this chat'),el('small','PDF, Word, text, Markdown or CSV · up to 40 MB each'));chatDropPane.append(dropOverlay);
+let dragDepth=0;
+const hasFiles=e=>Array.from(e.dataTransfer?.types||[]).includes('Files');
+function clearDrop(){dragDepth=0;dropOverlay.hidden=true;}
+// Prevent Chromium from navigating to a file dropped outside the chat target.
+window.addEventListener('dragover',e=>{if(hasFiles(e)){e.preventDefault();if(!chatDropPane.contains(e.target))e.dataTransfer.dropEffect='none';}});
+window.addEventListener('drop',e=>{if(hasFiles(e))e.preventDefault();clearDrop();});
+window.addEventListener('dragend',clearDrop);window.addEventListener('blur',clearDrop);
+chatDropPane.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();dragDepth++;if(!busy&&thread)dropOverlay.hidden=false;});
+chatDropPane.addEventListener('dragleave',e=>{if(!hasFiles(e))return;dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)clearDrop();});
+chatDropPane.addEventListener('dragover',e=>{if(!hasFiles(e))return;e.preventDefault();e.dataTransfer.dropEffect=busy||!thread?'none':'copy';});
+chatDropPane.addEventListener('drop',async e=>{
+ if(!hasFiles(e))return;e.preventDefault();e.stopPropagation();clearDrop();
+ if(busy||!thread){notice('Wait for the current task to finish before adding documents.');return;}
+ const files=Array.from(e.dataTransfer.files);if(!files.length)return;
+ const chatId=thread.id,pending=flushDraft();setBusy(true);notice();$('progress').textContent='Adding and indexing dropped documents…';
+ try{await pending;const result=await window.desk.importDropped(files,chatId);documents=result.documents;selected.clear();result.selected.forEach(id=>selected.add(id));thread.selected=[...selected];renderDocs();renderContext();notice([result.imported?`${result.imported} document${result.imported===1?'':'s'} added to this chat. Your message has not been sent.`:'',...result.errors].filter(Boolean).join('\n'));}
+ catch(error){notice(error.message);}finally{setBusy(false);await refresh();}
+});

@@ -39,6 +39,14 @@ if(locked)app.whenReady().then(()=>{
   }finally{importing=false;}
  });
  handle('remove',id=>{idle();library.remove(id);for(const t of store.data.threads.filter(t=>t.projectId===store.data.activeProjectId))t.selected=t.selected.filter(d=>d!==id);store.save();return library.list();});
+ handle('import-dropped',async(files,chatId)=>{
+  idle();const thread=store.require(chatId);
+  if(!Array.isArray(files)||!files.length||files.length>20)throw Error('Drop between 1 and 20 documents at a time.');
+  importing=true;const errors=[],ids=[];
+  try{for(const file of files){try{if(typeof file!=='string'||!path.isAbsolute(file))throw Error('Could not read this file. Drag it from File Explorer.');ids.push(await library.import(file));}catch(e){errors.push((typeof file==='string'&&file?path.basename(file)+': ':'')+e.message);}}
+   thread.selected=[...new Set([...thread.selected,...ids])];store.save();return {documents:library.list(),selected:thread.selected,imported:ids.length,errors};
+  }finally{importing=false;}
+ });
  handle('document-read',(id,offset)=>{const doc=library.list().find(d=>d.id===id);if(!doc)throw Error('File not found in this project.');return {doc,parts:library.read(id,offset).map(({text,page,part,total})=>({text,page,part,total})),note:doc.editable?library.noteText(id):undefined};});
  handle('document-open',async id=>{const error=await shell.openPath(library.originalPath(id));if(error)throw Error(error);});
  handle('note-save',async payload=>{idle();importing=true;try{const id=await library.saveNote(payload.id,payload.name,payload.text);return {id,documents:library.list()};}finally{importing=false;}});

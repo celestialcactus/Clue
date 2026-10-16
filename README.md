@@ -29,6 +29,8 @@ Previous installer EXEs, blockmaps and ZIPs have been removed. No replacement in
 
 Choose or create a project on the left. Each project has separate files, notes and conversations. The right-hand drawer is a dedicated file preview. Use its search icon (Ctrl+P) to filter project files in a modal; opening a result only previews it and never submits a chat request. **Use in chat** explicitly adds or removes that file from retrieval context. With no files selected, the active project's library is available. The + icon imports PDF, Word, text, Markdown and CSV; notes are read-only until you choose Edit note. Drag the divider to resize, drag toward the right edge to collapse, or use the collapse button. Width and open state are remembered. The focused divider also supports left/right arrows and Enter to collapse. Web references are saved per conversation and can be previewed in the same pane.
 
+You can also drag up to 20 documents from File Explorer onto the middle chat pane. A drop indicator appears, supported files are imported and indexed locally, and successfully imported files are selected as context for the current conversation. Dropping never submits the draft or starts a chat response. Existing imports are deduplicated; invalid files report individual errors.
+
 Ask naturally. There is no web selector or manual search box. The router executes public searches for explicit research, current information, verification/compliance questions and research follow-ups. Summaries and extraction of uploaded documents normally stay local. Say **“Use only project files”** to prevent new network requests for that request. Previously saved public evidence may still be used.
 
 For document-related research, the app first retrieves relevant passages, asks the local model for a generic public topic and checks the query for known identifiers. Regulation and jurisdiction fields must be grounded in the request or retrieved document. The activity timeline shows routing, retrieval, the exact outgoing query, page reads, compaction and response generation. These are execution events, not hidden model reasoning.
@@ -94,6 +96,7 @@ npm test
 node scripts/smoke-retrieval.cjs
 node scripts/smoke-context.cjs
 node scripts/smoke-ui.cjs
+node scripts/smoke-drop.cjs
 ```
 
 Unit tests cover migration, project/thread isolation, notes, formats, retrieval ranking, query guards, routing, compaction budgeting, action failures, cancellation and streaming. The smoke scripts exercise the real local embedding model, local LLM, and Electron UI using isolated `.test-data/` profiles. The UI smoke uses live public research, so network availability affects that check. `scripts/smoke-package.cjs` is reserved for a future freshly built package.

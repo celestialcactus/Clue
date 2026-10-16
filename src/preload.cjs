@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('desk',{
  searchChats:query=>ipcRenderer.invoke('chat-search',query),
  importDropped:(files,chatId)=>ipcRenderer.invoke('import-dropped',Array.from(files,file=>webUtils.getPathForFile(file)),chatId),
  newChat:projectId=>ipcRenderer.invoke('chat-new',projectId),load:id=>ipcRenderer.invoke('chat-load',id),update:(id,patch)=>ipcRenderer.invoke('chat-update',id,patch),deleteChat:id=>ipcRenderer.invoke('chat-delete',id),
+ dropProject:(id,files=[],documentId)=>ipcRenderer.invoke('project-drop',id,Array.from(files,file=>webUtils.getPathForFile(file)),documentId),
  newProject:name=>ipcRenderer.invoke('project-create',name),loadProject:(id,threadId)=>ipcRenderer.invoke('project-load',id,threadId),renameProject:name=>ipcRenderer.invoke('project-rename',name),
  readDocument:(id,offset)=>ipcRenderer.invoke('document-read',id,offset),openDocument:id=>ipcRenderer.invoke('document-open',id),saveNote:payload=>ipcRenderer.invoke('note-save',payload),
  clearWeb:id=>ipcRenderer.invoke('web-clear',id),cancel:()=>ipcRenderer.invoke('cancel'),ask:payload=>ipcRenderer.invoke('ask',payload),openSource:url=>ipcRenderer.invoke('open-source',url),export:id=>ipcRenderer.invoke('export',id),

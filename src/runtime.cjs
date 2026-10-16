@@ -25,7 +25,7 @@ class Runtime {
  async complete(messages,signal,json=false,onDelta,options={}){
   if(!this.ready)throw Error(this.state);
   const maxTokens=options.maxTokens||(json?300:1000);if(await this.countMessages(messages,signal)+maxTokens+128>this.contextSize)throw Error('The task exceeds the local model context after budgeting. Shorten the request or reduce selected evidence.');
-  const r=await fetch(this.url+'/v1/chat/completions',{method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.key},body:JSON.stringify({messages,temperature:.2,max_tokens:maxTokens,stream:!!onDelta,...(json?{response_format:{type:'json_object'}}:{})})});
+  const r=await fetch(this.url+'/v1/chat/completions',{method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.key},body:JSON.stringify({messages,temperature:.2,max_tokens:maxTokens,stream:!!onDelta,...(json?{response_format:{type:'json_object'}}:{frequency_penalty:.2,presence_penalty:.1})})});
   if(!r.ok)throw Error('The local model could not finish this request. Try a shorter question or start a new chat.');
   if(onDelta)return readCompletionStream(r.body,onDelta,signal);
   return (await r.json()).choices[0].message.content;
@@ -34,10 +34,19 @@ class Runtime {
 }
 async function readCompletionStream(body,onDelta,signal){
  const decoder=new TextDecoder();let pending='',answer='',done=false;
- const line=raw=>{if(!raw.startsWith('data:'))return;const data=raw.slice(5).trim();if(data==='[DONE]'){done=true;return;}if(!data)return;const event=JSON.parse(data);if(event.error)throw Error(event.error.message||'Local inference failed.');const delta=event.choices?.[0]?.delta?.content;if(delta){answer+=delta;onDelta(delta);}};
+ const line=raw=>{if(done||!raw.startsWith('data:'))return;const data=raw.slice(5).trim();if(data==='[DONE]'){done=true;return;}if(!data)return;const event=JSON.parse(data);if(event.error)throw Error(event.error.message||'Local inference failed.');const delta=event.choices?.[0]?.delta?.content;if(delta){const next=answer+delta,cut=repetitionCut(next);if(cut!==null){const safe=next.slice(0,Math.max(answer.length,cut));onDelta(safe.slice(answer.length));answer=safe;const note='\n\n[Generation stopped because the model began repeating itself. This answer may be incomplete.]';answer+=note;onDelta(note);done=true;}else{answer=next;onDelta(delta);}}};
  for await(const bytes of body){signal?.throwIfAborted();pending+=decoder.decode(bytes,{stream:true});let index;while((index=pending.indexOf('\n'))>=0){line(pending.slice(0,index).replace(/\r$/,''));pending=pending.slice(index+1);}if(done)break;}
  pending+=decoder.decode();if(pending.trim()&&!done)line(pending.trim());
  if(!done)throw Error('The model connection ended before the answer finished. Please retry.');
  return answer;
 }
-module.exports={Runtime,readCompletionStream};
+// Stop a third consecutive copy of a substantial phrase, including across SSE chunks.
+function repetitionCut(text){
+ const tokens=[...text.matchAll(/[\p{L}\p{N}]+/gu)];
+ for(let end=36;end<=tokens.length;end++)for(let size=12;size<=Math.min(100,Math.floor(end/3));size++){
+  let match=true;for(let i=0;i<size;i++){const a=tokens[end-1-i][0].toLowerCase();if(a!==tokens[end-1-i-size][0].toLowerCase()||a!==tokens[end-1-i-size*2][0].toLowerCase()){match=false;break;}}
+  if(match)return tokens[end-size].index;
+ }
+ return null;
+}
+module.exports={Runtime,readCompletionStream,repetitionCut};

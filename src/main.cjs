@@ -2,7 +2,7 @@ const {app,BrowserWindow,ipcMain,dialog,session,shell}=require('electron');
 const path=require('node:path');const fs=require('node:fs');
 const {Runtime}=require('./runtime.cjs');const {Embeddings}=require('./embeddings.cjs');const {ProjectLibraries}=require('./projects.cjs');
 const {ThreadStore}=require('./threads.cjs');const {executeWorkflow}=require('./workflow.cjs');
-const {projectHistory}=require('./project-memory.cjs');
+
 const {searchWeb,readWeb}=require('./web.cjs');
 const processStartedAt=Number(process.env.DESK_DEV_STARTED)||Date.now();
 let win,library,libraries,embedder,runtime,store,active,importing=false;
@@ -18,7 +18,7 @@ if(locked)app.whenReady().then(()=>{
  app.setAppUserModelId('local.desk.assistant');
  const dir=app.getPath('userData');
  const assets=app.isPackaged?process.resourcesPath:path.join(__dirname,'../assets');
- try{store=new ThreadStore(dir);embedder=new Embeddings(assets);libraries=new ProjectLibraries(dir,embedder);library=libraries.get(store.data.activeProjectId);}
+ try{store=new ThreadStore(dir);embedder=new Embeddings(assets);libraries=new ProjectLibraries(dir,embedder);if(!store.data.activeId)store.create(null);library=libraries.getThread(store.get(store.data.activeId));}
  catch(e){dialog.showErrorBox('Local data could not be opened',e.message+'\nExisting data has not been replaced.');app.quit();return;}
  runtime=new Runtime(assets);
  if(!app.isPackaged&&process.env.DESK_DEV_RELOAD){const reloadFile=path.join(dir,'reload.request');let seen=processStartedAt;fs.watchFile(reloadFile,{interval:500},stat=>{if(stat.mtimeMs>seen){seen=stat.mtimeMs;app.quit();}});app.on('before-quit',()=>fs.unwatchFile(reloadFile));}
@@ -29,9 +29,18 @@ if(locked)app.whenReady().then(()=>{
  win.loadFile(path.join(__dirname,'ui/index.html'));
  runtime.start().catch(e=>{runtime.state='Unable to start local model: '+e.message;});
  const handle=(name,fn)=>ipcMain.handle(name,async(event,...args)=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame)throw Error('Unauthorized request');return fn(...args);});
- handle('status',()=>({ready:!!runtime.ready,state:runtime.state,model:'Qwen2.5 · 1.5B · Q4',retrievalState:embedder.state,documents:library.list(),chats:store.list(),activeId:store.data.activeId,projects:store.projectTree(),activeProjectId:store.data.activeProjectId}));
- handle('project-create',name=>{idle();store.createProject(name);library=libraries.get(store.data.activeProjectId);return store.create();});
- handle('project-load',(id,threadId)=>{idle();if(threadId&&store.get(threadId)?.projectId!==id)throw Error('Conversation not found in this project.');store.activateProject(id);library=libraries.get(id);if(threadId)return store.activate(threadId);return store.data.activeId?store.activate(store.data.activeId):store.create();});
+ handle('status',()=>({ready:!!runtime.ready,state:runtime.state,model:'Qwen2.5 · 1.5B · Q4',retrievalState:embedder.state,documents:library.list(),chats:store.list(),activeId:store.data.activeId,projects:store.projectTree(),recents:store.recents(),activeProjectId:store.data.activeProjectId}));
+ handle('project-create',name=>{idle();store.createProject(name);const thread=store.create();library=libraries.getThread(thread);return thread;});
+ handle('project-load',(id,threadId)=>{idle();if(threadId&&store.get(threadId)?.projectId!==id)throw Error('Conversation not found in this project.');store.activateProject(id);const thread=threadId?store.activate(threadId):store.data.activeId?store.activate(store.data.activeId):store.create();library=libraries.getThread(thread);return thread;});
+ handle('project-drop',async(projectId,files,documentId)=>{
+  idle();if(!store.data.projects.some(p=>p.id===projectId))throw Error('Project not found.');
+  if(!Array.isArray(files)||files.length>20||(!files.length&&!documentId))throw Error('Drop between 1 and 20 documents.');
+  const target=libraries.get(projectId),errors=[];let imported=0;importing=true;
+  try{if(documentId){const doc=library.list().find(d=>d.id===documentId);if(!doc)throw Error('File not available in this chat.');const id=await target.import(library.originalPath(documentId));target.docs.find(d=>d.id===id).name=doc.name;target.save();imported++;}
+   for(const file of files){try{if(typeof file!=='string'||!path.isAbsolute(file))throw Error('Invalid file path.');await target.import(file);imported++;}catch(e){errors.push(path.basename(String(file))+': '+e.message);}}
+   return {imported,errors};
+  }finally{importing=false;}
+ });
  handle('project-rename',name=>{idle();return store.renameProject(name);});
  handle('import',async()=>{
   idle();importing=true;
@@ -40,7 +49,7 @@ if(locked)app.whenReady().then(()=>{
    return {documents:library.list(),errors};
   }finally{importing=false;}
  });
- handle('remove',id=>{idle();library.remove(id);for(const t of store.data.threads.filter(t=>t.projectId===store.data.activeProjectId))t.selected=t.selected.filter(d=>d!==id);store.save();return library.list();});
+ handle('remove',id=>{idle();library.remove(id);for(const t of store.data.threads.filter(t=>t.id===store.data.activeId||store.data.activeProjectId&&t.projectId===store.data.activeProjectId))t.selected=t.selected.filter(d=>d!==id);store.save();return library.list();});
  handle('import-dropped',async(files,chatId)=>{
   idle();const thread=store.require(chatId);
   if(!Array.isArray(files)||!files.length||files.length>20)throw Error('Drop between 1 and 20 documents at a time.');
@@ -52,9 +61,9 @@ if(locked)app.whenReady().then(()=>{
  handle('document-read',(id,offset)=>{const doc=library.list().find(d=>d.id===id);if(!doc)throw Error('File not found in this project.');return {doc,parts:library.read(id,offset).map(({text,page,part,total})=>({text,page,part,total})),note:doc.editable?library.noteText(id):undefined};});
  handle('document-open',async id=>{const error=await shell.openPath(library.originalPath(id));if(error)throw Error(error);});
  handle('note-save',async payload=>{idle();importing=true;try{const id=await library.saveNote(payload.id,payload.name,payload.text);return {id,documents:library.list()};}finally{importing=false;}});
- handle('chat-new',projectId=>{idle();if(projectId){store.activateProject(projectId);library=libraries.get(projectId);}return store.create();});
+ handle('chat-new',projectId=>{idle();const thread=store.create(projectId||null);library=libraries.getThread(thread);return thread;});
  handle('chat-search',query=>store.search(query));
- handle('chat-load',id=>{idle();return store.activate(id);});
+ handle('chat-load',id=>{idle();const thread=store.activate(id);library=libraries.getThread(thread);return thread;});
  handle('chat-update',(id,patch)=>{idle();if(!patch||typeof patch!=='object')throw Error('Invalid conversation settings.');return store.update(id,patch);});
  handle('chat-delete',id=>{idle();store.remove(id);return store.data.activeId;});
  handle('web-clear',id=>{idle();const thread=store.require(id);thread.research={query:'',results:[],pages:[]};thread.publicTopic='';thread.ignorePriorWeb=true;thread.pendingWeb=false;store.save();return thread;});
@@ -70,7 +79,7 @@ if(locked)app.whenReady().then(()=>{
   emit({type:'started',threadId:thread.id,thread});
   let lastSave=Date.now();
   try{
-   const result=await executeWorkflow({thread,assistant,message,library,runtime,searchWeb,readWeb,projectName:store.project().name,getProjectHistory:()=>projectHistory(store,thread.id,message),signal,save:()=>store.save(),
+   const result=await executeWorkflow({thread,assistant,message,library,runtime,searchWeb,readWeb,projectName:store.project()?.name||'',signal,save:()=>store.save(),
     onActivity:activity=>emit({type:'activity',threadId:thread.id,messageId:assistant.id,activity}),
     onDelta:delta=>{assistant.content+=delta;emit({type:'delta',threadId:thread.id,messageId:assistant.id,delta});if(Date.now()-lastSave>1000){store.save();lastSave=Date.now();}},
    });

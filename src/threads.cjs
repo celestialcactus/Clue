@@ -8,7 +8,7 @@ function normalize(thread) {
   return {
     ...thread,
     createdAt: thread.createdAt || now(), updatedAt: thread.updatedAt || now(),
-    projectId:thread.projectId||'default',selected: thread.selected || [], draft: thread.draft || '',
+    projectId:thread.projectId===undefined?'default':thread.projectId,selected: thread.selected || [], draft: thread.draft || '',
     pendingAttachments:thread.pendingAttachments||thread.selected||[],
     research: thread.research || { query: '', results: [], pages: [] },
     memory: thread.memory || { summary: '', covered: 0 },
@@ -31,7 +31,7 @@ class ThreadStore {
     }
     this.data.threads = this.data.threads.map(normalize);
     this.data.version=3;this.data.projects ||= [{id:'default',name:'My project',createdAt:now(),activeThreadId:this.data.activeId}];
-    this.data.activeProjectId ||= 'default';
+    if(this.data.activeProjectId===undefined)this.data.activeProjectId='default';
     for(const thread of this.data.threads)delete thread.webEnabled;
     for (const thread of this.data.threads) {
       for (const message of thread.messages) {
@@ -54,20 +54,22 @@ class ThreadStore {
     return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
   }
+  recents(){return [...this.data.threads].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId})=>({id,title,updatedAt,projectId}));}
   projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt})=>({id,title,updatedAt}))}));}
   search(query='') {
     const term=String(query).trim().toLowerCase().slice(0,200);
-    return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId)
+    return [...this.data.threads]
       .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
       .flatMap(t=>{const hit=t.messages.find(m=>m.content?.toLowerCase().includes(term));if(term&&!t.title.toLowerCase().includes(term)&&!hit)return[];
         const text=hit?.content||t.messages.find(m=>m.content)?.content||'';const start=term?Math.max(0,text.toLowerCase().indexOf(term)-45):0;
         return [{id:t.id,title:t.title,excerpt:(start?'…':'')+text.slice(start,start+160),updatedAt:t.updatedAt}];}).slice(0,100);
   }
-  create() {
-    const thread = normalize({ id: randomUUID(),projectId:this.data.activeProjectId, title: 'New conversation', messages: [] });
+  create(projectId=this.data.activeProjectId) {
+    if(projectId!==null&&!this.data.projects.some(p=>p.id===projectId))throw Error('Project not found.');
+    const thread = normalize({ id: randomUUID(),projectId, title: 'New conversation', messages: [] });
     this.data.threads.unshift(thread);this.activate(thread.id);return thread;
   }
-  activate(id) { const thread = this.require(id); this.data.activeId = id;this.project().activeThreadId=id; this.save(); return thread; }
+  activate(id) { const thread = this.get(id);if(!thread)throw Error('Conversation not found.');this.data.activeProjectId=thread.projectId; this.data.activeId = id;if(this.project())this.project().activeThreadId=id; this.save(); return thread; }
   project(){return this.data.projects.find(p=>p.id===this.data.activeProjectId);}
   createProject(name){name=String(name||'').trim().slice(0,100);if(!name)throw Error('Enter a project name.');const project={id:randomUUID(),name,createdAt:now(),activeThreadId:null};this.data.projects.push(project);this.activateProject(project.id);return project;}
   activateProject(id){const project=this.data.projects.find(p=>p.id===id);if(!project)throw Error('Project not found.');this.data.activeProjectId=id;this.data.activeId=this.get(project.activeThreadId)?.projectId===id?project.activeThreadId:this.list()[0]?.id||null;this.save();return project;}
@@ -84,7 +86,7 @@ class ThreadStore {
     this.require(id);
     this.data.threads = this.data.threads.filter(t => t.id !== id);
     if (this.data.activeId === id) this.data.activeId = this.list()[0]?.id || null;
-    this.project().activeThreadId=this.data.activeId;
+    if(this.project())this.project().activeThreadId=this.data.activeId;
     this.save();
   }
   begin(id, content, attachments=[]) {

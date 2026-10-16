@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('desk',{
  dropProject:(id,files=[],documentId)=>ipcRenderer.invoke('project-drop',id,Array.from(files,file=>webUtils.getPathForFile(file)),documentId),
  chooseFolder:()=>ipcRenderer.invoke('folder-choose'),updateProjectSource:(id,payload)=>ipcRenderer.invoke('project-source-update',id,payload),refreshProjectSource:id=>ipcRenderer.invoke('project-source-refresh',id),openProjectSource:id=>ipcRenderer.invoke('project-source-open',id),
  newProject:name=>ipcRenderer.invoke('project-create',name),loadProject:(id,threadId)=>ipcRenderer.invoke('project-load',id,threadId),renameProject:name=>ipcRenderer.invoke('project-rename',name),
+ renderDocumentPage:(chatId,id,page)=>ipcRenderer.invoke('document-page',chatId,id,page),
  readDocument:(id,offset)=>ipcRenderer.invoke('document-read',id,offset),openDocument:id=>ipcRenderer.invoke('document-open',id),saveNote:payload=>ipcRenderer.invoke('note-save',payload),
  clearWeb:id=>ipcRenderer.invoke('web-clear',id),cancel:id=>ipcRenderer.invoke('cancel',id),ask:payload=>ipcRenderer.invoke('ask',payload),openSource:url=>ipcRenderer.invoke('open-source',url),export:id=>ipcRenderer.invoke('export',id),
  onEvent:fn=>ipcRenderer.on('thread-event',(_e,event)=>fn(event)),

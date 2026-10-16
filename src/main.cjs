@@ -77,6 +77,12 @@ if(locked)app.whenReady().then(()=>{
    thread.selected=[...new Set([...thread.selected,...ids])];thread.pendingAttachments=[...new Set([...thread.pendingAttachments,...ids])];store.save();return {documents:target.list(),pendingAttachments:thread.pendingAttachments,selected:thread.selected,imported:ids.length,errors};
   }finally{importing=false;}
  });
+ let previewRender=Promise.resolve();
+ handle('document-page',(chatId,id,page)=>{
+  const owner=store.require(chatId),target=libraries.getThread(owner),file=target.originalPath(id);
+  if(path.extname(file).toLowerCase()!=='.pdf')throw Error('This file is not a PDF.');
+  const request=previewRender.catch(()=>{}).then(()=>require('./pdf-preview.cjs').renderPdfPage(file,page));previewRender=request;return request;
+ });
  handle('document-read',(id,offset)=>{const doc=library.list().find(d=>d.id===id);if(!doc)throw Error('File not found in this project.');return {doc,parts:library.read(id,offset).map(({text,page,part,total})=>({text,page,part,total})),note:doc.editable?library.noteText(id):undefined};});
  handle('document-open',async id=>{const error=await shell.openPath(library.originalPath(id));if(error)throw Error(error);});
  handle('note-save',async payload=>{idle();importing=true;try{const id=await library.saveNote(payload.id,payload.name,payload.text);return {id,documents:library.list()};}finally{importing=false;}});

@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let thread=null,busy=false,ready=false,documents=[],chats=[],projects=[],projectId='',draftTimer,patchQueue=Promise.resolve(),preview=null,noteDirty=false,renameMode='thread';
+let thread=null,busy=false,ready=false,documents=[],chats=[],projects=[],projectId='',draftTimer,patchQueue=Promise.resolve(),preview=null,noteDirty=false,renameMode='thread',pendingAttachments=[],attachmentSignature='';
 const selected=new Set(),welcome=$('welcome').cloneNode(true);
 function el(tag,text,cls){const node=document.createElement(tag);if(tag==='button')node.type='button';if(text)node.textContent=text;if(cls)node.className=cls;return node;}
 function notice(message=''){$('notice').textContent=message.replace(/^Error invoking remote method '[^']+': Error: /,'');$('notice').hidden=!message;}
@@ -8,7 +8,7 @@ function setBusy(value){
  busy=value;for(const id of ['send','new','clear-web','rename','project-select','project-new','project-rename','new-note','save-note','use-document','edit-note'])$(id).disabled=value||(id==='send'&&!ready);
  $('stop').hidden=!value;$('prompt').disabled=value;$('note-name').disabled=value;$('note-text').disabled=value;
  document.querySelectorAll('.documents button,.documents input,.chat-row button,.retry').forEach(node=>node.disabled=value);
- if(!value)$('progress').textContent='';publishWorkspace();
+ if(!value)$('progress').textContent='';renderAttachments();publishWorkspace();
 }
 function queuePatch(patch){
  const id=thread?.id;if(!id)return Promise.resolve();$('saved-state').textContent='Saving…';
@@ -17,7 +17,7 @@ function queuePatch(patch){
 }
 async function flushDraft(){clearTimeout(draftTimer);if(thread&&!busy)await queuePatch({draft:$('prompt').value});await patchQueue;}
 function publishWorkspace(){window.dispatchEvent(new Event('workspace-state'));}
-function renderDocs(){publishWorkspace();if(preview?.id)$('use-document').textContent=selected.has(preview.id)?'Remove from chat context':'Use in chat';}
+function renderDocs(){renderAttachments();publishWorkspace();if(preview?.id)$('use-document').textContent=selected.has(preview.id)?'Remove from chat context':'Use in chat';}
 async function removeFile(id){const file=documents.find(d=>d.id===id);if(!file||!confirm('Remove '+file.name+' from this project? Existing chat excerpts will remain.'))return;if(preview?.id===id&&!discardNote())return;await flushDraft();documents=await window.desk.remove(id);selected.delete(id);if(preview?.id===id)closePreview();thread.selected=[...selected];renderDocs();renderContext();}
 async function openChat(id){if(busy)return;await flushDraft();renderThread(await window.desk.load(id));await refresh();}
 function renderChats(){
@@ -146,7 +146,21 @@ chatDropPane.addEventListener('drop',async e=>{
  if(!hasFiles(e))return;e.preventDefault();e.stopPropagation();clearDrop();
  if(busy||!thread){notice('Wait for the current task to finish before adding documents.');return;}
  const files=Array.from(e.dataTransfer.files);if(!files.length)return;
- const chatId=thread.id,pending=flushDraft();setBusy(true);notice();$('progress').textContent='Adding and indexing dropped documents…';
+ const chatId=thread.id,pending=flushDraft();pendingAttachments=files.map(file=>({name:file.name}));setBusy(true);notice();$('progress').textContent='Adding and indexing dropped documents…';
  try{await pending;const result=await window.desk.importDropped(files,chatId);documents=result.documents;selected.clear();result.selected.forEach(id=>selected.add(id));thread.selected=[...selected];renderDocs();renderContext();notice([result.imported?`${result.imported} document${result.imported===1?'':'s'} added to this chat. Your message has not been sent.`:'',...result.errors].filter(Boolean).join('\n'));}
- catch(error){notice(error.message);}finally{setBusy(false);await refresh();}
+ catch(error){notice(error.message);}finally{pendingAttachments=[];setBusy(false);await refresh();}
 });
+
+function attachmentIcon(){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d','M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6');svg.append(path);return svg;}
+function renderAttachments(){
+ const files=documents.filter(d=>selected.has(d.id)),signature=JSON.stringify({files:files.map(d=>[d.id,d.name]),pendingAttachments,busy});if(signature===attachmentSignature)return;attachmentSignature=signature;
+ const tray=$('chat-attachments');tray.replaceChildren();tray.hidden=!files.length&&!pendingAttachments.length;
+ for(const file of [...files,...pendingAttachments.map(d=>({...d,pending:true}))]){
+  const card=el('div',null,'attachment-card');card.dataset.pending=String(!!file.pending);
+  const button=el('button',null,'attachment-preview');button.title=file.name;button.setAttribute('aria-label',(file.pending?'Adding ':'Preview ')+file.name);button.disabled=!!file.pending;const visual=el('span',null,'attachment-visual');visual.append(attachmentIcon());
+  const label=el('span',null,'attachment-label'),type=el('span',(file.name.split('.').pop()||'FILE').slice(0,5).toUpperCase(),'attachment-type');type.dataset.type=type.textContent.toLowerCase();label.append(type,el('span',file.name,'attachment-name'));button.append(visual,label);
+  button.onclick=()=>showDocument(file.id).catch(e=>notice(e.message));card.append(button);
+  if(file.pending){card.append(el('span','Adding…','attachment-status'));}else{const remove=el('button','×','attachment-remove');remove.title='Remove from chat context';remove.setAttribute('aria-label','Remove '+file.name+' from chat');remove.disabled=busy;remove.onclick=async()=>{if(busy)return;try{const next=[...selected].filter(id=>id!==file.id);await queuePatch({selected:next});selected.delete(file.id);thread.selected=next;renderDocs();renderContext();$('prompt').focus();}catch(e){notice(e.message);}};card.append(remove);}
+  tray.append(card);
+ }
+}

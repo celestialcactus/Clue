@@ -104,3 +104,18 @@ test('SSE parser handles fragmented UTF-8, completion and truncated responses',a
 });
 
 test('greetings do not inherit project evidence',()=>{for(const message of ['Hello there','Hi!','Good morning']){const intent=routeIntent({message,hasLibrary:true,selected:['doc'],hadSources:true});assert.equal(intent.documents,false);assert.equal(intent.smallTalk,true);assert.equal(intent.requestedWeb,false);}});
+
+test('new conversations do not inherit actions, selected files, memory or web research',async()=>{
+ const f=fixture();try{
+  f.thread.selected=['old-doc'];f.thread.pendingAttachments=['old-doc'];f.thread.memory={summary:'OLD_PRIVATE_CONTEXT',covered:2};
+  f.thread.research={query:'Old research',results:[{url:'https://example.com',text:'OLD_PRIVATE_CONTEXT'}],pages:[]};
+  const old=f.store.begin(f.thread.id,'Read my document').assistant;old.activities.push({id:'old-action',kind:'documents',status:'complete',label:'Old document search'});old.content='OLD_PRIVATE_CONTEXT';old.status='complete';f.store.save();
+  const fresh=f.store.create();assert.deepEqual(fresh.messages,[]);assert.deepEqual(fresh.selected,[]);assert.deepEqual(fresh.pendingAttachments,[]);assert.equal(fresh.memory.summary,'');assert.equal(fresh.research.query,'');
+  for(const message of ['Hello there','Explain how rainbows form']){
+   const {assistant}=f.store.begin(fresh.id,message);let prompt;
+   const result=await executeWorkflow({thread:fresh,assistant,message,library:{list:()=>[{id:'old-doc',name:'Old file.txt'}],search:()=>assert.fail('Unrelated document retrieval'),read:()=>assert.fail('Unrelated file read')},runtime:{...model('Hello!'),complete:async m=>{prompt=m;return 'Hello!';}},getProjectHistory:()=>[],signal:signal(),searchWeb:()=>assert.fail('Unrelated web search')});
+   assert.deepEqual(result.sources,[]);assert.ok(!JSON.stringify(prompt).includes('OLD_PRIVATE_CONTEXT'));assert.deepEqual(assistant.activities.map(a=>a.kind),['route','route','answer']);assistant.status='complete';assistant.content=result.answer;
+  }
+  assert.equal(old.activities[0].id,'old-action','Keep the historical action log in its original conversation');
+ }finally{f.cleanup();}
+});

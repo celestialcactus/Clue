@@ -53,7 +53,8 @@ async function executeWorkflow({thread,assistant,message,library,runtime,searchW
  }
  const web=thread.research.results.map(r=>pages.find(p=>p.sourceUrl===r.url||p.url===r.url)||{...r,text:'Search snippet only: '+r.text});
  const priorSources=(previous?.sources||[]).filter(s=>(!intent.requestedWeb&&!thread.ignorePriorWeb)||!s.url);
- const projectSources=getProjectHistory?await activity('project_context','Finding relevant history from other conversations in this project',async()=>{const sources=getProjectHistory();for(const source of sources)source.text=await runtime.fitText(source.text,220,signal);return sources;}):[];
+ const projectSources=getProjectHistory?getProjectHistory():[];
+ if(projectSources.length)await activity('project_context','Using relevant history from other conversations in this project',async()=>{for(const source of projectSources)source.text=await runtime.fitText(source.text,220,signal);});
  const result=await runAgent({message,thread,projectSources,history:completedMessages(history),memory:thread.memory.summary,library,runtime,web,priorSources,seedPassages,selected:thread.selected,signal,activity,onDelta,intent,observations,readPublic:intent.allowNetwork&&intent.requestedWeb?readPublic:undefined});
  return {...result,intent};
 }

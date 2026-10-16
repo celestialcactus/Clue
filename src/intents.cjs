@@ -19,7 +19,7 @@ function routeIntent({message,previousQuery='',selected=[],pendingWeb=false,hadS
  const followup=!!previousQuery&&FOLLOWUP.test(message);
  const localFind=/\b(?:search|find|look)\b.{0,30}\b(?:in|through|within)\s+(?:my |our |the )?(?:files|documents|library)\b/i.test(message)&&!explicit;
  const requestedWeb=!offline&&!localFind&&(explicit||freshness||verification||followup||pendingWeb&&!docReference&&!/^(cancel|never mind)/i.test(message));
- const documents=selected.length>0||docReference||hadSources&&!requestedWeb||hasLibrary&&!requestedWeb&&!/^\s*(hi|hello|hey|thanks)[!.\s]*$/i.test(message);
+ const documents=selected.length>0||docReference||hadSources&&!requestedWeb;
  const goal=/\bcompar(?:e|ison)|\bdifferences?\b|\bversus\b|\bcompli(?:es|ance|ant)\b/i.test(message)?'compare':/\bsummari[sz]e|\bsummary\b|\bsimplify\b/i.test(message)?'summarize':/\bextract|\bpull out|\baction items\b|\bkey dates\b/i.test(message)?'extract':requestedWeb?'research':documents?'document_question':'chat';
  const query=requestedWeb?publicQuery(message,previousQuery):'';
  const documentInformed=requestedWeb&&hasLibrary&&(selected.length>0||docReference||goal==='compare'||!query);

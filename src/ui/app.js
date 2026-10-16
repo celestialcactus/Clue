@@ -45,6 +45,7 @@ function appendMessage(message,index){
  $('messages').append(article);
 }
 function renderThread(value){
+ if(thread?.id!==value.id){$('research').open=false;$('progress').textContent='';notice();}
  thread=value;selected.clear();thread.selected.forEach(id=>selected.add(id));$('title').textContent=thread.title;$('prompt').value=thread.draft||'';
  $('messages').replaceChildren();if(!thread.messages.length)$('messages').append(welcome.cloneNode(true));else thread.messages.forEach(appendMessage);
  renderDocs();renderContext();renderChats();$('messages').scrollTop=$('messages').scrollHeight;$('saved-state').textContent='Saved locally';

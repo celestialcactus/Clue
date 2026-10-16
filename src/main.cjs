@@ -4,6 +4,7 @@ const {Runtime}=require('./runtime.cjs');const {Embeddings}=require('./embedding
 const {ThreadStore}=require('./threads.cjs');const {projectHistory}=require('./project-memory.cjs');const {executeWorkflow}=require('./workflow.cjs');
 
 const {searchWeb,readWeb}=require('./web.cjs');
+const {randomUUID}=require('node:crypto');const {syncSourceFolder}=require('./source-folders.cjs');const folderChoices=new Map();
 const processStartedAt=Number(process.env.DESK_DEV_STARTED)||Date.now();
 let win,library,libraries,embedder,runtime,store,active,importing=false;
 if(!app.isPackaged&&process.env.DESK_TEST_PROFILE)app.setPath('userData',path.resolve(process.env.DESK_TEST_PROFILE));
@@ -30,7 +31,13 @@ if(locked)app.whenReady().then(()=>{
  runtime.start().catch(e=>{runtime.state='Unable to start local model: '+e.message;});
  const handle=(name,fn)=>ipcMain.handle(name,async(event,...args)=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame)throw Error('Unauthorized request');return fn(...args);});
  handle('status',()=>({ready:!!runtime.ready,state:runtime.state,model:'Qwen2.5 · 1.5B · Q4',retrievalState:embedder.state,documents:library.list(),chats:store.list(),activeId:store.data.activeId,projects:store.projectTree(),recents:store.recents(),activeProjectId:store.data.activeProjectId}));
- handle('project-create',name=>{idle();store.createProject(name);const thread=store.create();library=libraries.getThread(thread);return thread;});
+ const folderChoice=token=>{if(!token)return null;const folderPath=folderChoices.get(token);if(!folderPath)throw Error('Choose the folder again.');if(!fs.statSync(folderPath).isDirectory())throw Error('Source folder is unavailable.');return {id:randomUUID(),path:folderPath,state:'pending',count:0,errors:[]};};
+ const syncFolder=async project=>syncSourceFolder(project,libraries.getFolder(project.id,project.sourceFolder.id),{save:()=>store.save(),progress:event=>emit({type:'folder-progress',...event})});
+ handle('folder-choose',async()=>{idle();const result=await dialog.showOpenDialog(win,{title:'Choose a project source folder',properties:['openDirectory']});if(result.canceled||!result.filePaths.length)return null;const folderPath=fs.realpathSync(result.filePaths[0]),token=randomUUID();folderChoices.set(token,folderPath);return {token,path:folderPath,name:path.basename(folderPath)};});
+ handle('project-create',async payload=>{idle();const data=typeof payload==='string'?{name:payload}:payload;if(!data||typeof data.name!=='string')throw Error('Enter a project name.');const folder=folderChoice(data.folderToken);const project=store.createProject(data.name);project.sourceFolder=folder;store.save();const thread=store.create();library=libraries.getThread(thread);importing=true;try{if(folder)await syncFolder(project);return thread;}finally{importing=false;library=libraries.getThread(thread);}});
+ handle('project-source-update',async(id,payload)=>{idle();const project=store.data.projects.find(p=>p.id===id);if(!project)throw Error('Project not found.');let folder=payload.folderToken?folderChoice(payload.folderToken):null;if(folder?.path===project.sourceFolder?.path)folder=project.sourceFolder;const name=String(payload.name||'').trim().slice(0,100);if(!name)throw Error('Enter a project name.');project.name=name;if(folder||payload.detachFolder)project.sourceFolder=folder;store.save();importing=true;try{if(folder)await syncFolder(project);return project;}finally{importing=false;library=libraries.getThread(store.get(store.data.activeId));}});
+ handle('project-source-refresh',async id=>{idle();const project=store.data.projects.find(p=>p.id===id);if(!project?.sourceFolder)throw Error('No source folder selected.');importing=true;try{return await syncFolder(project);}finally{importing=false;library=libraries.getThread(store.get(store.data.activeId));}});
+ handle('project-source-open',async id=>{const folder=store.data.projects.find(p=>p.id===id)?.sourceFolder;if(!folder)throw Error('No source folder selected.');const error=await shell.openPath(folder.path);if(error)throw Error(error);});
  handle('project-load',(id,threadId)=>{idle();if(threadId&&store.get(threadId)?.projectId!==id)throw Error('Conversation not found in this project.');store.activateProject(id);const thread=threadId?store.activate(threadId):store.data.activeId?store.activate(store.data.activeId):store.create();library=libraries.getThread(thread);return thread;});
  handle('chat-move', (id,projectId)=>{idle();const moved=store.moveToProject(id,projectId);library=libraries.getThread(store.get(store.data.activeId));return moved;});
  handle('project-drop',async(projectId,files,documentId)=>{
@@ -50,7 +57,7 @@ if(locked)app.whenReady().then(()=>{
    return {documents:library.list(),errors};
   }finally{importing=false;}
  });
- handle('remove',id=>{idle();library.remove(id);for(const t of store.data.threads.filter(t=>t.id===store.data.activeId||store.data.activeProjectId&&t.projectId===store.data.activeProjectId))t.selected=t.selected.filter(d=>d!==id);store.save();return library.list();});
+ handle('remove',id=>{idle();if(library.list().find(d=>d.id===id)?.sourcePath)throw Error('This is a source-folder file. Change the source folder contents and refresh, or disconnect the folder.');library.remove(id);for(const t of store.data.threads.filter(t=>t.id===store.data.activeId||store.data.activeProjectId&&t.projectId===store.data.activeProjectId))t.selected=t.selected.filter(d=>d!==id);store.save();return library.list();});
  handle('import-dropped',async(files,chatId)=>{
   idle();const thread=store.require(chatId);
   if(!Array.isArray(files)||!files.length||files.length>20)throw Error('Drop between 1 and 20 documents at a time.');

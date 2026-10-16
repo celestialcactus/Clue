@@ -32,6 +32,7 @@ class ThreadStore {
     }
     this.data.threads = this.data.threads.map(normalize).filter(hasContext);
     this.data.version=3;this.data.projects ||= [{id:'default',name:'My project',createdAt:now(),activeThreadId:this.data.activeId}];
+    for(const project of this.data.projects)if(project.sourceFolder?.state==='indexing'){project.sourceFolder.state='attention';project.sourceFolder.errors=['Indexing was interrupted. Refresh the source folder to finish.'];}
     if(this.data.activeProjectId===undefined)this.data.activeProjectId='default';
     for(const thread of this.data.threads)delete thread.webEnabled;
     for (const thread of this.data.threads) {

@@ -26,6 +26,7 @@
 <div id="pane-resizer" role="separator" aria-label="Resize file preview" aria-orientation="vertical" aria-controls="files-pane" tabindex="0"></div>
 <aside id="files-pane" class="files-pane">
  <div class="files-heading"><div><span class="section-label">File preview</span><h2 id="project-files-title">My project</h2></div><div id="file-tools-root"></div></div>
+ <div id="source-folder-root"></div>
  <div id="preview-empty"><div class="empty-file-icon">▤</div><h3>No file open</h3><p>Browse files available to this chat.</p><button id="browse-files" type="button">Browse files</button><button id="new-note" class="quiet" type="button">Create a note</button></div>
  <section id="file-preview" hidden>
   <div class="preview-heading"><h3 id="preview-title"></h3><button id="preview-close" class="icon-button" aria-label="Close preview" type="button">×</button></div>
@@ -35,4 +36,4 @@
   <div class="preview-actions"><button id="preview-prev" type="button">Previous</button><span id="preview-position"></span><button id="preview-next" type="button">Next</button></div>
  </section>
 </aside>
-<dialog id="rename-dialog"><form id="rename-form"><label id="rename-label" for="rename-input">Conversation name</label><input id="rename-input" maxlength="100" required><div><button type="button" id="rename-cancel">Cancel</button><button type="submit" class="primary">Save</button></div></form></dialog><script src="app.js"></script><script src="../../.renderer/search.js" defer></script></body></html>
+<dialog id="rename-dialog"><form id="rename-form"><label id="rename-label" for="rename-input">Conversation name</label><input id="rename-input" maxlength="100" required><div><button type="button" id="rename-cancel">Cancel</button><button type="submit" class="primary">Save</button></div></form></dialog><div id="project-dialog-root"></div><script src="app.js"></script><script src="../../.renderer/search.js" defer></script></body></html>

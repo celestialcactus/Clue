@@ -5,7 +5,8 @@ class ProjectLibraries{
   if(fs.existsSync(path.join(legacy,'library.json'))&&!fs.existsSync(dest)){fs.mkdirSync(path.dirname(dest),{recursive:true});fs.cpSync(legacy,dest,{recursive:true});}
  }
  local(thread){const key='chat-'+thread.id;if(!this.cache.has(key))this.cache.set(key,new Library(path.join(this.root,'..','conversations',thread.id,'library'),this.embedder));return this.cache.get(key);}
- getThread(thread){if(!thread)throw Error('No conversation selected.');const shared=thread.projectId?[this.get(thread.projectId),...(this.store?.data.threads||[]).filter(t=>t.id!==thread.id&&t.projectId===thread.projectId&&t.shareWithProject===true).map(t=>this.local(t))]:[];return new ConversationLibrary(this.local(thread),shared);}
+ getThread(thread){if(!thread)throw Error('No conversation selected.');const folder=this.store?.data.projects.find(p=>p.id===thread.projectId)?.sourceFolder;const shared=thread.projectId?[this.get(thread.projectId),...(folder?[this.getFolder(thread.projectId,folder.id)]:[]),...(this.store?.data.threads||[]).filter(t=>t.id!==thread.id&&t.projectId===thread.projectId&&t.shareWithProject===true).map(t=>this.local(t))]:[];return new ConversationLibrary(this.local(thread),shared);}
+ getFolder(projectId,folderId){this.get(projectId);if(!/^[a-f0-9-]{36}$/.test(folderId))throw Error('Invalid folder identifier.');const key='folder-'+projectId+'-'+folderId;if(!this.cache.has(key))this.cache.set(key,new Library(path.join(this.root,projectId,'sources',folderId),this.embedder));return this.cache.get(key);}
  get(id){if(!/^(default|[a-f0-9-]{36})$/.test(id))throw Error('Invalid project identifier.');if(!this.cache.has(id))this.cache.set(id,new Library(path.join(this.root,id,'library'),this.embedder));return this.cache.get(id);}
 }
 // Shared thread files remain in their original storage; project membership controls visibility.

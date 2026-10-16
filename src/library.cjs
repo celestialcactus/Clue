@@ -15,13 +15,14 @@ class Library {
     this.docs = fs.existsSync(this.file) ? JSON.parse(fs.readFileSync(this.file, 'utf8')) : [];
   }
   save() {this.index=null;writeJson(this.file,this.docs);}
-  list() { return this.docs.map(({id,name,added,parts,editable,original}) => ({id,name,added,chunks:parts.length,editable:!!editable,hasOriginal:!!original})); }
-  async import(file) {
+  list() { return this.docs.map(({id,name,added,parts,editable,original,sourcePath}) => ({id,name,added,sourcePath,chunks:parts.length,editable:!!editable,hasOriginal:!!original})); }
+  async import(file, options={}) {
     const stat = fs.statSync(file);
     if(!stat.isFile())throw Error('Please drop individual documents, not folders.');
     if(stat.size > 40 * 1024 * 1024) throw Error('Please choose a document smaller than 40 MB.');
     const data = fs.readFileSync(file), hash = crypto.createHash('sha256').update(data).digest('hex');
-    const existing=this.docs.find(d=>d.hash===hash);if(existing){if(!existing.original){existing.original=existing.id+path.extname(file).toLowerCase();fs.copyFileSync(file,path.join(this.files,existing.original));this.save();}await this.indexDocument(existing);return existing.id;}
+    const previous=options.sourcePath?this.docs.find(d=>d.sourcePath===options.sourcePath):null;
+    const existing=options.sourcePath?(previous?.hash===hash?previous:null):this.docs.find(d=>d.hash===hash&&!d.sourcePath);if(existing){if(!existing.original){existing.original=existing.id+path.extname(file).toLowerCase();fs.copyFileSync(file,path.join(this.files,existing.original));this.save();}await this.indexDocument(existing);return existing.id;}
     const ext=path.extname(file).toLowerCase(); let pages=[];
     if(ext==='.pdf') {
       const {PDFParse}=require('pdf-parse');const parser=new PDFParse({data:new Uint8Array(data),isEvalSupported:false});
@@ -31,8 +32,8 @@ class Library {
     else throw Error('Supported formats: PDF, Word (.docx), text, Markdown, and CSV.');
     const parts=pages.flatMap(p=>chunks(p.text).map(text=>({text,page:p.page}))).filter(p=>p.text.trim());
     if(!parts.length) throw Error('No readable text found. Scanned documents need OCR before importing.');
-    const id=crypto.randomUUID(),original=id+ext;fs.copyFileSync(file,path.join(this.files,original));
-    const doc={id,hash,name:path.basename(file),added:new Date().toISOString(),parts,original};this.docs.push(doc);this.save();await this.indexDocument(doc);return id;
+    const id=previous?.id||crypto.randomUUID(),original=id+ext;fs.copyFileSync(file,path.join(this.files,original));
+    const doc={id,hash,name:options.displayName||path.basename(file),added:new Date().toISOString(),parts,original,...(options.sourcePath?{sourcePath:options.sourcePath}:{})};if(previous)this.docs[this.docs.indexOf(previous)]=doc;else this.docs.push(doc);this.save();await this.indexDocument(doc);return id;
   }
   remove(id) { const doc=this.docs.find(d=>d.id===id);this.docs=this.docs.filter(d=>d.id!==id);this.save();if(doc?.original)fs.rmSync(path.join(this.files,path.basename(doc.original)),{force:true}); }
   originalPath(id){const doc=this.docs.find(d=>d.id===id);if(!doc?.original)throw Error('This older import has extracted text only. Re-import the original to keep a file copy.');return path.join(this.files,path.basename(doc.original));}

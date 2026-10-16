@@ -51,6 +51,16 @@ Files dropped into the middle chat pane (or imported through Add files) are stor
 
 Generation uses modest frequency/presence penalties and a streaming repetition guard. A third consecutive repetition of a substantial phrase stops generation, releases the response stream, and adds an incomplete-answer notice. It does not silently restart or present the truncated answer as exhaustive.
 
+## Project source folders
+
+Create project opens a centered dialog with an optional native folder picker. Choose a local folder to make its PDF, DOCX, TXT, Markdown and CSV files available to the project's chats. Subfolders are scanned; hidden directories, dependency/build folders and symbolic links are skipped. Source folders are shared document sources, not permission for the model to run commands or change files.
+
+The preview pane shows the selected path, indexing status, issues and last refresh time. Use **Refresh files** after changing files on disk; scanning is explicit rather than a background watcher. Refresh updates changed documents while retaining their IDs, adds new files, and removes deleted files from the active index only after a complete scan. Missing folders and unreadable files preserve the last indexed copies with a visible warning. Preview and Open indexed copy use those managed copies. Existing response excerpts remain historical records.
+
+Use **Source folder** in a project's menu or **Manage source folder** in its preview pane to replace or disconnect the folder. Source originals are never changed or deleted. The folder path and index metadata persist locally; indexes and cached copies are isolated under the project. A standalone chat cannot access them. A project can also be created without a folder or any saved chats.
+
+To keep indexing bounded on smaller devices, one scan accepts up to 500 supported files / 200 MB total, with a 40 MB per-file limit and 10,000 scanned entries. Limit and parsing failures are shown in the folder status. There is no automatic OCR for scanned PDFs.
+
 ## Retrieval and context
 
 The retrieval pipeline is local hybrid RAG:
@@ -110,6 +120,7 @@ node scripts/smoke-ui.cjs
 node scripts/smoke-drop.cjs
 node scripts/smoke-projects.cjs
 node scripts/smoke-thread-move.cjs
+node scripts/smoke-source-folders.cjs
 ```
 
 Unit tests cover migration, project/thread isolation, notes, formats, retrieval ranking, query guards, routing, compaction budgeting, action failures, cancellation and streaming. The smoke scripts exercise the real local embedding model, local LLM, and Electron UI using isolated `.test-data/` profiles. The UI smoke uses live public research, so network availability affects that check. `scripts/smoke-package.cjs` is reserved for a future freshly built package.

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('desk',{
  moveChat:(id,projectId)=>ipcRenderer.invoke('chat-move',id,projectId),
  newChat:projectId=>ipcRenderer.invoke('chat-new',projectId),load:id=>ipcRenderer.invoke('chat-load',id),update:(id,patch)=>ipcRenderer.invoke('chat-update',id,patch),deleteChat:id=>ipcRenderer.invoke('chat-delete',id),
  dropProject:(id,files=[],documentId)=>ipcRenderer.invoke('project-drop',id,Array.from(files,file=>webUtils.getPathForFile(file)),documentId),
+ chooseFolder:()=>ipcRenderer.invoke('folder-choose'),updateProjectSource:(id,payload)=>ipcRenderer.invoke('project-source-update',id,payload),refreshProjectSource:id=>ipcRenderer.invoke('project-source-refresh',id),openProjectSource:id=>ipcRenderer.invoke('project-source-open',id),
  newProject:name=>ipcRenderer.invoke('project-create',name),loadProject:(id,threadId)=>ipcRenderer.invoke('project-load',id,threadId),renameProject:name=>ipcRenderer.invoke('project-rename',name),
  readDocument:(id,offset)=>ipcRenderer.invoke('document-read',id,offset),openDocument:id=>ipcRenderer.invoke('document-open',id),saveNote:payload=>ipcRenderer.invoke('note-save',payload),
  clearWeb:id=>ipcRenderer.invoke('web-clear',id),cancel:()=>ipcRenderer.invoke('cancel'),ask:payload=>ipcRenderer.invoke('ask',payload),openSource:url=>ipcRenderer.invoke('open-source',url),export:id=>ipcRenderer.invoke('export',id),

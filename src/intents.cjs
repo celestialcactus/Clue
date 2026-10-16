@@ -1,4 +1,4 @@
-const DOCS=/\b(documents?|files?|sops?|polic(?:y|ies)|uploaded|attached|internal|our company|this procedure)\b/i;
+const DOCS=/\b(documents?|files?|folders?|notes?|sops?|polic(?:y|ies)|uploaded|attached|internal|our company|this procedure)\b/i;
 const PRIVATE=/\b(my|our|internal|confidential|uploaded|attached|documents?|files?|sops?|company)\b/i;
 const OFFLINE=/\b(don['’]?t|do not|never|without|no|avoid|stop)\s+(?:using\s+|use\s+|doing\s+|a\s+|any\s+)?(?:web|internet|online|brows(?:e|ing)|search(?:ing)?)|\b(?:offline only|local only|only (?:use|search|read) (?:my |our |the )?(?:files|documents|library))\b/i;
 const FOLLOWUP=/^(?:(?:please|now)\s+)*(?:(?:what|how) about|and (?:in|for)|search again|search (?:for )?(?:that|it|this)|look (?:that|it|this) up|check (?:that|it|this)|find more|any updates)/i;

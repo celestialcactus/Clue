@@ -13,7 +13,7 @@ async function executeWorkflow({thread,assistant,message,library,runtime,searchW
  };
  const history=thread.messages.slice(0,-2);
  const previous=history.filter(m=>m.role==='assistant'&&m.status==='complete').at(-1);
- const named=library.list().filter(d=>message.toLowerCase().includes(d.name.toLowerCase())).map(d=>d.id);
+ const named=library.list().filter(d=>message.toLowerCase().includes(d.name.toLowerCase())||message.toLowerCase().includes(d.name.split(/[\\/]/).pop().toLowerCase())).map(d=>d.id);
  if(named.length)thread.selected=named;
  thread.selected=thread.selected.filter(id=>library.list().some(d=>d.id===id));
  const intent=await activity('route','Identifying the task',async()=>routeIntent({message,previousQuery:thread.research.query||thread.publicTopic,selected:thread.selected,pendingWeb:thread.pendingWeb,hadSources:!!previous?.sources?.some(s=>s.documentId),hasLibrary:library.list().length>0}));

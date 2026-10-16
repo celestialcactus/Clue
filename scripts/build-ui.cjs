@@ -1,0 +1,4 @@
+const fs=require('node:fs');const path=require('node:path');
+const root=path.resolve(__dirname,'..'),out=path.join(root,'.renderer');fs.mkdirSync(out,{recursive:true});
+require('esbuild').buildSync({entryPoints:[path.join(root,'src/ui/search.tsx')],outfile:path.join(out,'search.js'),bundle:true,minify:true,platform:'browser',format:'iife',jsx:'automatic',define:{'process.env.NODE_ENV':'"production"'}});
+(async()=>{const base=path.join(root,'src/ui');const compiler=await require('@tailwindcss/node').compile(fs.readFileSync(path.join(base,'components.css'),'utf8'),{base,onDependency:()=>{}});const scanner=new (require('@tailwindcss/oxide').Scanner)({sources:compiler.sources});fs.writeFileSync(path.join(out,'components.css'),compiler.build(scanner.scan()));})().catch(e=>{console.error(e);process.exitCode=1;});

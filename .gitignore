@@ -8,3 +8,4 @@ assets/embeddings/
 .dev-session.json
 *.log
 .test-data/
+.renderer/

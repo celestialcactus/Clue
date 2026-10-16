@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const {words,hybridRank}=require('./retrieval.cjs');
+const {writeJson}=require('./storage.cjs');
 function chunks(text, size = 1000) {
   const out = [];
   for(let start=0;start<text.length;){let end=Math.min(text.length,start+size);if(end<text.length){const boundary=text.lastIndexOf('\n',end);if(boundary>start+size*.6)end=boundary;}out.push(text.slice(start,end));if(end===text.length)break;start=end-120;}
@@ -13,7 +14,7 @@ class Library {
     this.embedder=embedder;this.files=path.join(dir,'files');fs.mkdirSync(this.files,{recursive:true});this.file = path.join(dir, 'library.json');
     this.docs = fs.existsSync(this.file) ? JSON.parse(fs.readFileSync(this.file, 'utf8')) : [];
   }
-  save() {this.index=null;fs.writeFileSync(this.file + '.tmp', JSON.stringify(this.docs)); fs.renameSync(this.file + '.tmp', this.file); }
+  save() {this.index=null;writeJson(this.file,this.docs);}
   list() { return this.docs.map(({id,name,added,parts,editable,original}) => ({id,name,added,chunks:parts.length,editable:!!editable,hasOriginal:!!original})); }
   async import(file) {
     const stat = fs.statSync(file);

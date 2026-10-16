@@ -12,6 +12,7 @@ function idle(){if(active||importing)throw Error('Please stop or finish the curr
 function emit(payload){if(win&&!win.isDestroyed())win.webContents.send('thread-event',payload);}
 
 if(locked)app.whenReady().then(()=>{
+ if(!app.isPackaged){try{require('node:child_process').execFileSync(process.execPath,[path.join(__dirname,'../scripts/build-ui.cjs')],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},windowsHide:true,stdio:'pipe'});}catch(e){dialog.showErrorBox('UI build failed',String(e.stderr||e.message));app.quit();return;}}
  app.setAppUserModelId('local.desk.assistant');
  const dir=app.getPath('userData');
  const assets=app.isPackaged?process.resourcesPath:path.join(__dirname,'../assets');
@@ -42,6 +43,7 @@ if(locked)app.whenReady().then(()=>{
  handle('document-open',async id=>{const error=await shell.openPath(library.originalPath(id));if(error)throw Error(error);});
  handle('note-save',async payload=>{idle();importing=true;try{const id=await library.saveNote(payload.id,payload.name,payload.text);return {id,documents:library.list()};}finally{importing=false;}});
  handle('chat-new',()=>{idle();return store.create();});
+ handle('chat-search',query=>store.search(query));
  handle('chat-load',id=>{idle();return store.activate(id);});
  handle('chat-update',(id,patch)=>{idle();if(!patch||typeof patch!=='object')throw Error('Invalid conversation settings.');return store.update(id,patch);});
  handle('chat-delete',id=>{idle();store.remove(id);return store.data.activeId;});

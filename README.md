@@ -27,13 +27,17 @@ Previous installer EXEs, blockmaps and ZIPs have been removed. No replacement in
 
 ## Using the app
 
-Choose or create a project on the left. Each project has separate files, notes and conversations. The expandable **Files** pane on the right supports importing PDF, Word, text, Markdown and CSV, viewing extracted passages, opening managed originals and editing project notes. Check files to focus retrieval; with no files checked the active project's library is available. Web references are saved per conversation and can be previewed in the same pane.
+Choose or create a project on the left. Each project has separate files, notes and conversations. The right-hand drawer is a dedicated file preview. Use its search icon (Ctrl+P) to filter project files in a modal; opening a result only previews it and never submits a chat request. **Use in chat** explicitly adds or removes that file from retrieval context. With no files selected, the active project's library is available. The + icon imports PDF, Word, text, Markdown and CSV; notes are read-only until you choose Edit note. Drag the divider to resize, drag toward the right edge to collapse, or use the collapse button. Width and open state are remembered. The focused divider also supports left/right arrows and Enter to collapse. Web references are saved per conversation and can be previewed in the same pane.
 
 Ask naturally. There is no web selector or manual search box. The router executes public searches for explicit research, current information, verification/compliance questions and research follow-ups. Summaries and extraction of uploaded documents normally stay local. Say **“Use only project files”** to prevent new network requests for that request. Previously saved public evidence may still be used.
 
 For document-related research, the app first retrieves relevant passages, asks the local model for a generic public topic and checks the query for known identifiers. Regulation and jurisdiction fields must be grounded in the request or retrieved document. The activity timeline shows routing, retrieval, the exact outgoing query, page reads, compaction and response generation. These are execution events, not hidden model reasoning.
 
 Documents and conversation text are not uploaded wholesale. Public search queries, including topics derived from documents, do leave the machine. Identifier filtering reduces accidental disclosure but cannot recognize every confidential concept. Web search uses a public HTML endpoint and can be rate-limited or blocked; unreadable pages are clearly identified as snippets.
+
+Chat search is an icon above New conversation (Ctrl+K). The modal searches both titles and messages within the active project. Arrow keys, Enter, Escape and focus restoration are supported for both search dialogs.
+
+The interface uses locally bundled [shadcn/ui](https://ui.shadcn.com/docs/components/radix/dialog) Button, Input and Dialog components with Radix focus management and Lucide icons. Source components live in `src/ui/components/`, with their MIT license. React is used for these UI controls; the existing chat workflow remains behind the restricted IPC bridge. `npm run ui:build` compiles the local renderer using esbuild and Tailwind, and source launches rebuild it automatically. Generated assets are in `.renderer/`, excluded from Git. No remote UI resources are loaded.
 
 ## Retrieval and context
 

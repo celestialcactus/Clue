@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
+const {writeJson}=require('./storage.cjs');
 
 const now = () => new Date().toISOString();
 function normalize(thread) {
@@ -44,14 +45,21 @@ class ThreadStore {
     this.save();
   }
   save() {
-    fs.writeFileSync(this.file + '.tmp', JSON.stringify(this.data));
-    fs.renameSync(this.file + '.tmp', this.file);
+    writeJson(this.file,this.data);
   }
   get(id) { return this.data.threads.find(t => t.id === id); }
   require(id) { const t = this.get(id); if (!t||t.projectId!==this.data.activeProjectId) throw Error('This conversation is not in the active project.'); return t; }
   list() {
     return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
+  }
+  search(query='') {
+    const term=String(query).trim().toLowerCase().slice(0,200);
+    return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId)
+      .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
+      .flatMap(t=>{const hit=t.messages.find(m=>m.content?.toLowerCase().includes(term));if(term&&!t.title.toLowerCase().includes(term)&&!hit)return[];
+        const text=hit?.content||t.messages.find(m=>m.content)?.content||'';const start=term?Math.max(0,text.toLowerCase().indexOf(term)-45):0;
+        return [{id:t.id,title:t.title,excerpt:(start?'…':'')+text.slice(start,start+160),updatedAt:t.updatedAt}];}).slice(0,100);
   }
   create() {
     const thread = normalize({ id: randomUUID(),projectId:this.data.activeProjectId, title: 'New conversation', messages: [] });

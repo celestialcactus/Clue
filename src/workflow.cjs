@@ -36,6 +36,7 @@ async function executeWorkflow({thread,assistant,message,library,runtime,searchW
    observations.push(`Searched the public web for: ${intent.query}`);
   }catch(e){signal.throwIfAborted();observations.push('Public web search failed: '+e.message);}
  }
+ if(intent.smallTalk)return runAgent({message,thread,history:completedMessages(history),memory:thread.memory.summary,library,runtime,signal,activity,onDelta,intent});
  const pages=thread.research.pages;
  const readPublic=async index=>{
   const result=thread.research.results[index];if(!result)return;

@@ -10,6 +10,7 @@ function publicQuery(message,previous=''){
  return !q||PRIVATE.test(q)||/^(what|how|that|it|this|more|the latest|updates|again)$/i.test(q)?'':q.slice(0,250);
 }
 function routeIntent({message,previousQuery='',selected=[],pendingWeb=false,hadSources=false,hasLibrary=false}){
+ if(/^\s*(?:(?:hi|hello|hey)(?: there)?|thanks|thank you|good morning|good afternoon|good evening)[!.\s]*$/i.test(message))return {goal:'chat',route:'chat',documents:false,requestedWeb:false,query:'',allowNetwork:false,reason:'Conversational greeting',smallTalk:true};
  const offline=OFFLINE.test(message)||/\b(?:use|search|read) only (?:my |our |the |project )?(?:files|documents|library)\b/i.test(message),docReference=DOCS.test(message);
  const explicit=/\blook\s+(?:this|that|it)\s+up\b|\bfind\s+(?:public |official |reliable )?(?:sources|references|websites)\b/i.test(message)||/\b(?:search|browse|look up|research|google|bing)\b/i.test(message)&&(!docReference||/\b(web|internet|online|public)\b/i.test(message))||/\b(?:find|check)\b.{0,35}\b(?:online|on the web|on the internet)\b/i.test(message);
  const localTransform=/^\s*(?:summari[sz]e|extract|rewrite|translate|list)\b/i.test(message)&&docReference;

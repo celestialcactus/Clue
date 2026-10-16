@@ -102,3 +102,5 @@ test('SSE parser handles fragmented UTF-8, completion and truncated responses',a
  async function* truncated(){yield Buffer.from('data: {"choices":[{"delta":{"content":"Partial"}}]}\n');}
  await assert.rejects(readCompletionStream(truncated(),()=>{},signal()),/before the answer finished/);
 });
+
+test('greetings do not inherit project evidence',()=>{for(const message of ['Hello there','Hi!','Good morning']){const intent=routeIntent({message,hasLibrary:true,selected:['doc'],hadSources:true});assert.equal(intent.documents,false);assert.equal(intent.smallTalk,true);assert.equal(intent.requestedWeb,false);}});

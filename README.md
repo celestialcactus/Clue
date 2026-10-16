@@ -109,3 +109,5 @@ Unit tests cover migration, project/thread isolation, notes, formats, retrieval 
 ## Limits
 
 Target: Windows 10/11 x64 CPU. An 8 GB RAM computer with several GB free disk space is a provisional starting point, not a measured minimum. The small 1.5B model favors lower resource use over reasoning accuracy. Performance and quality still need testing on the intended computer. Scanned PDFs need OCR before import; legacy `.doc` and image OCR are not supported. Imports are limited to 40 MB. The router is deterministic, so unusual language may need rephrasing. This is a research assistant, not an automated compliance determination.
+
+Recents lists conversations across projects in update order. Hover project rows for New conversation and a menu (open, rename, new conversation); Recents also has a new-chat action. New chats clear the preview. Greetings skip document and shared-history retrieval. Substantive answers request fuller explanations and include a short supporting-passages section in the response instead of a separate evidence accordion.

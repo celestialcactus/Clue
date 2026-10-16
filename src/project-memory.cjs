@@ -10,7 +10,7 @@ function projectHistory(store,threadId,query){
   }
  }
  const relevant=lexicalRank(query,passages).map(r=>r.p),recent=[...passages].sort((a,b)=>b.date.localeCompare(a.date));
- const chosen=[],seen=new Set();for(const p of [...relevant.slice(0,5),...recent.slice(0,3)]){const key=p.threadId+':'+p.messageId+':'+p.offset;if(seen.has(key))continue;seen.add(key);chosen.push({threadId:p.threadId,messageId:p.messageId,part:p.offset,label:p.label,text:p.text,kind:'project_chat'});if(chosen.length>=6)break;}
+ const chosen=[],seen=new Set();for(const p of [...relevant.slice(0,5),...(/\b(other (?:chat|conversation|thread)|previous|earlier|we agreed|remember|project history)\b/i.test(query)?recent.slice(0,3):[])]){const key=p.threadId+':'+p.messageId+':'+p.offset;if(seen.has(key))continue;seen.add(key);chosen.push({threadId:p.threadId,messageId:p.messageId,part:p.offset,label:p.label,text:p.text,kind:'project_chat'});if(chosen.length>=6)break;}
  return chosen;
 }
 module.exports={projectHistory};

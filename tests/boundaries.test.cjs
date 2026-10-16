@@ -6,6 +6,7 @@ test('dropping a thread shares its files and history only with its current proje
  try{
   const store=new ThreadStore(root),libraries=new ProjectLibraries(root,null,store);
   const a=store.createProject('A'),receiver=store.create(),b=store.createProject('B'),other=store.create(),source=store.create(null);
+  store.activate(receiver.id);store.begin(receiver.id,'Project question');store.activate(source.id);
   const file=path.join(root,'Launch.txt');fs.writeFileSync(file,'Launch date November 8.');const id=await libraries.getThread(source).import(file);
   store.begin(source.id,'Our launch date is November 8.').assistant.status='complete';store.update(source.id,{selected:[id],pendingAttachments:[id],draft:'Draft stays intact'});
   const separate=store.create(null);assert.deepEqual(projectHistory(store,separate.id,'launch date'),[]);
@@ -24,8 +25,8 @@ test('standalone chats persist outside projects; attachments remain private unti
   const store=new ThreadStore(root),libraries=new ProjectLibraries(root),project=store.createProject('Work'),a=store.create(),b=store.create();
   const file=path.join(root,'private.txt');fs.writeFileSync(file,'PRIVATE_ALPHA weekly inspection');const id=await libraries.getThread(a).import(file);
   assert.equal(libraries.getThread(a).list().length,1);assert.equal(libraries.getThread(b).list().length,0);assert.throws(()=>libraries.getThread(b).read(id));assert.equal((await libraries.getThread(b).search('PRIVATE_ALPHA')).length,0);
-  const solo=store.create(null);assert.equal(solo.projectId,null);assert.ok(!store.projectTree().some(p=>p.threads.some(t=>t.id===solo.id)));assert.ok(store.recents().some(t=>t.id===solo.id));
-  await libraries.getThread(solo).import(file);const solo2=store.create(null);assert.equal(libraries.getThread(solo2).list().length,0);
+  const solo=store.create(null);store.begin(solo.id,'Standalone question');assert.equal(solo.projectId,null);assert.ok(!store.projectTree().some(p=>p.threads.some(t=>t.id===solo.id)));assert.ok(store.recents().some(t=>t.id===solo.id));
+  await libraries.getThread(solo).import(file);const solo2=store.create(null);store.begin(solo2.id,'Another question');assert.equal(libraries.getThread(solo2).list().length,0);
   await libraries.get(project.id).import(file);assert.equal(libraries.getThread(b).list()[0].scope,'project');assert.ok((await libraries.getThread(b).search('PRIVATE_ALPHA')).length);assert.equal(libraries.getThread(solo2).list().length,0);
   const restored=new ThreadStore(root);assert.equal(restored.get(solo2.id).projectId,null);assert.equal(restored.data.activeProjectId,null);assert.equal(new ProjectLibraries(root).getThread(restored.get(solo.id)).list().length,1);
  }finally{fs.rmSync(root,{recursive:true,force:true});}

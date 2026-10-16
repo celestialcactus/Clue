@@ -4,8 +4,8 @@ const {hybridRank,words}=require('../src/retrieval.cjs');const {buildDocumentQue
 test('projects isolate files, notes, retrieval and threads across restart; migrate legacy library',async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'desk-projects-'));try{
   const file=path.join(dir,'Legacy.txt');fs.writeFileSync(file,'Weekly exit inspections.');await new Library(path.join(dir,'library')).import(file);
-  let store=new ThreadStore(dir);let libraries=new ProjectLibraries(dir);const first=store.create();const original=libraries.get('default').list()[0];assert.ok(original);
-  const p=store.createProject('Training');const second=store.create();assert.deepEqual(libraries.get(p.id).list(),[]);assert.throws(()=>store.require(first.id));assert.throws(()=>libraries.get(p.id).read(original.id));
+  let store=new ThreadStore(dir);let libraries=new ProjectLibraries(dir);const first=store.create();store.begin(first.id,'First project question');const original=libraries.get('default').list()[0];assert.ok(original);
+  const p=store.createProject('Training');const second=store.create();store.begin(second.id,'Second project question');assert.deepEqual(libraries.get(p.id).list(),[]);assert.throws(()=>store.require(first.id));assert.throws(()=>libraries.get(p.id).read(original.id));
   const id=await libraries.get(p.id).saveNote(null,'Training.md','Safety instruction on Friday.');assert.match(libraries.get(p.id).noteText(id),/Friday/);assert.equal((await libraries.get('default').search('Friday')).length,0);
   await libraries.get(p.id).saveNote(id,'Training.md','Safety instruction on Monday.');assert.match((await libraries.get(p.id).search('Monday'))[0].text,/Monday/);
   store=new ThreadStore(dir);libraries=new ProjectLibraries(dir);assert.equal(store.data.activeId,second.id);assert.equal(store.data.activeProjectId,p.id);assert.equal(libraries.get(p.id).list().length,1);
@@ -14,7 +14,7 @@ test('projects isolate files, notes, retrieval and threads across restart; migra
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 test('version 2 migration preserves backup and associates existing chats with default project',()=>{
- const dir=fs.mkdtempSync(path.join(os.tmpdir(),'desk-v2-'));try{const old=JSON.stringify({version:2,activeId:'a',threads:[{id:'a',title:'Old',messages:[],webEnabled:false}]});fs.writeFileSync(path.join(dir,'threads.json'),old);const store=new ThreadStore(dir);assert.equal(store.require('a').projectId,'default');assert.equal(store.data.version,3);assert.equal(fs.readFileSync(path.join(dir,'threads.json.v2-backup'),'utf8'),old);}finally{fs.rmSync(dir,{recursive:true,force:true});}
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'desk-v2-'));try{const old=JSON.stringify({version:2,activeId:'a',threads:[{id:'a',title:'Old',messages:[{role:'user',content:'Old question'}],webEnabled:false}]});fs.writeFileSync(path.join(dir,'threads.json'),old);const store=new ThreadStore(dir);assert.equal(store.require('a').projectId,'default');assert.equal(store.data.version,3);assert.equal(fs.readFileSync(path.join(dir,'threads.json.v2-backup'),'utf8'),old);}finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 test('hybrid retrieval combines exact terms and semantic candidates and diversifies duplicates',()=>{
  const passage=(key,text,vector)=>{const tokens=words(text),freq={};tokens.forEach(t=>freq[t]=(freq[t]||0)+1);return {key,id:key,text,tokens,freq,vector};};

@@ -12,7 +12,7 @@ function setBusy(value){
 }
 function queuePatch(patch){
  const id=thread?.id;if(!id)return Promise.resolve();$('saved-state').textContent='Saving…';
- patchQueue=patchQueue.catch(()=>{}).then(()=>window.desk.update(id,patch)).then(()=>{$('saved-state').textContent='Saved locally';});
+ patchQueue=patchQueue.catch(()=>{}).then(()=>window.desk.update(id,patch)).then(()=>{$('saved-state').textContent=thread?.messages.length?'Saved locally':'Not saved until you send';});
  patchQueue.catch(e=>{notice(e.message);$('saved-state').textContent='Could not save';});return patchQueue;
 }
 async function flushDraft(){clearTimeout(draftTimer);if(thread&&!busy)await queuePatch({draft:$('prompt').value});await patchQueue;}
@@ -48,7 +48,7 @@ function renderThread(value){
  if(thread?.id!==value.id){$('research').open=false;$('progress').textContent='';notice();}
  thread=value;selected.clear();thread.selected.forEach(id=>selected.add(id));$('title').textContent=thread.title;$('prompt').value=thread.draft||'';
  $('messages').replaceChildren();if(!thread.messages.length)$('messages').append(welcome.cloneNode(true));else thread.messages.forEach(appendMessage);
- renderDocs();renderContext();renderChats();$('messages').scrollTop=$('messages').scrollHeight;$('saved-state').textContent='Saved locally';
+ renderDocs();renderContext();renderChats();$('messages').scrollTop=$('messages').scrollHeight;$('saved-state').textContent=thread.messages.length?'Saved locally':'Not saved until you send';
 }
 async function refresh(){
  try{const state=await window.desk.status();ready=state.ready;documents=state.documents;chats=state.chats;projects=state.projects;recents=state.recents||[];projectId=state.activeProjectId;$('model-status').textContent=state.state;$('model-dot').classList.toggle('amber',!ready);$('send').disabled=busy||!ready;renderProjects();renderDocs();renderChats();return state;}catch(e){notice(e.message);}
@@ -75,7 +75,7 @@ $('rename-form').onsubmit=async e=>{e.preventDefault();try{const title=$('rename
 $('messages').onclick=e=>{const button=e.target.closest('[data-prompt]');if(button){$('prompt').value=button.dataset.prompt;$('prompt').focus();$('prompt').dispatchEvent(new Event('input'));}};
 window.desk.onEvent(event=>{
  if(event.threadId!==thread?.id)return;
- if(event.type==='started'){renderThread(event.thread);setBusy(true);return;}
+ if(event.type==='started'){renderThread(event.thread);setBusy(true);refresh();return;}
  if(event.type==='finished'){renderThread(event.thread);return;}
  const message=thread.messages.find(m=>m.id===event.messageId);if(!message)return;
  const article=[...$('messages').querySelectorAll('.message')].find(n=>n.dataset.messageId===message.id);if(!article)return;

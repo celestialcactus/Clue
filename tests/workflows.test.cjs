@@ -41,7 +41,7 @@ test('migrates old chats without changing original and isolates persistent threa
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'desk-migrate-'));
  try{const old=JSON.stringify([{id:'old',title:'Original',messages:[{role:'user',content:'Keep this'}]}]);fs.writeFileSync(path.join(dir,'chats.json'),old);
   const store=new ThreadStore(dir);assert.equal(store.get('old').messages[0].content,'Keep this');assert.equal(fs.readFileSync(path.join(dir,'chats.json'),'utf8'),old);
-  const a=store.create();store.update(a.id,{selected:['doc-a'],draft:'Unsent draft',webEnabled:false,title:'Thread A'});a.memory={summary:'Private thread A memory',covered:2};a.research={query:'Public A',results:[{url:'https://example.com'}],pages:[]};store.save();
+  const a=store.create();store.begin(a.id,'Existing question');store.update(a.id,{selected:['doc-a'],draft:'Unsent draft',webEnabled:false,title:'Thread A'});a.memory={summary:'Private thread A memory',covered:2};a.research={query:'Public A',results:[{url:'https://example.com'}],pages:[]};store.save();
   const b=store.create();assert.deepEqual(b.selected,[]);assert.equal(b.memory.summary,'');assert.equal(b.research.query,'');
   store.activate(a.id);const reopened=new ThreadStore(dir);assert.equal(reopened.data.activeId,a.id);assert.equal(reopened.get(a.id).draft,'Unsent draft');assert.equal(reopened.get(a.id).webEnabled,undefined);assert.equal(reopened.get(a.id).memory.summary,'Private thread A memory');
  }finally{fs.rmSync(dir,{recursive:true,force:true});}

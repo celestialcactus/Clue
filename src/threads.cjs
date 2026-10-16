@@ -3,6 +3,7 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const {writeJson}=require('./storage.cjs');
 
+const hasContext=thread=>thread.messages.some(m=>m.role==='user'&&String(m.content||'').trim());
 const now = () => new Date().toISOString();
 function normalize(thread) {
   return {
@@ -29,7 +30,7 @@ class ThreadStore {
       this.data = { version: 2, activeId: null, threads: fs.existsSync(legacy) ? JSON.parse(fs.readFileSync(legacy, 'utf8')) : [] };
       // Keep the original chats.json intact as a migration backup.
     }
-    this.data.threads = this.data.threads.map(normalize);
+    this.data.threads = this.data.threads.map(normalize).filter(hasContext);
     this.data.version=3;this.data.projects ||= [{id:'default',name:'My project',createdAt:now(),activeThreadId:this.data.activeId}];
     if(this.data.activeProjectId===undefined)this.data.activeProjectId='default';
     for(const thread of this.data.threads)delete thread.webEnabled;
@@ -46,15 +47,16 @@ class ThreadStore {
     this.save();
   }
   save() {
-    writeJson(this.file,this.data);
+    const threads=this.data.threads.filter(hasContext),ids=new Set(threads.map(t=>t.id));
+    writeJson(this.file,{...this.data,threads,activeId:ids.has(this.data.activeId)?this.data.activeId:null,projects:this.data.projects.map(p=>({...p,activeThreadId:ids.has(p.activeThreadId)?p.activeThreadId:null}))});
   }
   get(id) { return this.data.threads.find(t => t.id === id); }
   require(id) { const t = this.get(id); if (!t||t.projectId!==this.data.activeProjectId) throw Error('This conversation is not in the active project.'); return t; }
   list() {
-    return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
+    return this.data.threads.filter(t=>hasContext(t)&&t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
   }
-  recents(){return [...this.data.threads].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId})=>({id,title,updatedAt,projectId}));}
+  recents(){return this.data.threads.filter(hasContext).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId})=>({id,title,updatedAt,projectId}));}
   moveToProject(id,projectId){
     const thread=this.get(id),project=this.data.projects.find(p=>p.id===projectId);
     if(!thread||!project)throw Error('Conversation or project not found.');
@@ -65,10 +67,10 @@ class ThreadStore {
     if(this.data.activeId===id)this.data.activeProjectId=projectId;
     this.save();return thread;
   }
-  projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt})=>({id,title,updatedAt}))}));}
+  projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>hasContext(t)&&t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt})=>({id,title,updatedAt}))}));}
   search(query='') {
     const term=String(query).trim().toLowerCase().slice(0,200);
-    return [...this.data.threads]
+    return this.data.threads.filter(hasContext)
       .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))
       .flatMap(t=>{const hit=t.messages.find(m=>m.content?.toLowerCase().includes(term));if(term&&!t.title.toLowerCase().includes(term)&&!hit)return[];
         const text=hit?.content||t.messages.find(m=>m.content)?.content||'';const start=term?Math.max(0,text.toLowerCase().indexOf(term)-45):0;

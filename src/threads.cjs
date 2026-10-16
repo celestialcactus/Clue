@@ -9,6 +9,7 @@ function normalize(thread) {
     ...thread,
     createdAt: thread.createdAt || now(), updatedAt: thread.updatedAt || now(),
     projectId:thread.projectId||'default',selected: thread.selected || [], draft: thread.draft || '',
+    pendingAttachments:thread.pendingAttachments||thread.selected||[],
     research: thread.research || { query: '', results: [], pages: [] },
     memory: thread.memory || { summary: '', covered: 0 },
     messages: (thread.messages || []).map(m => ({ id: randomUUID(), createdAt: now(), status: 'complete', activities: [], ...m })),
@@ -53,6 +54,7 @@ class ThreadStore {
     return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
   }
+  projectTree(){return this.data.projects.map(p=>({...p,threads:this.data.threads.filter(t=>t.projectId===p.id).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt})=>({id,title,updatedAt}))}));}
   search(query='') {
     const term=String(query).trim().toLowerCase().slice(0,200);
     return this.data.threads.filter(t=>t.projectId===this.data.activeProjectId)
@@ -75,6 +77,7 @@ class ThreadStore {
     if (typeof patch.title === 'string' && patch.title.trim()) thread.title = patch.title.trim().slice(0,100);
     if (typeof patch.draft === 'string') thread.draft = patch.draft.slice(0,4000);
     if (Array.isArray(patch.selected)) thread.selected = [...new Set(patch.selected.filter(s => typeof s === 'string'))];
+    if (Array.isArray(patch.pendingAttachments))thread.pendingAttachments=[...new Set(patch.pendingAttachments.filter(id=>thread.selected.includes(id)))];
     this.save(); return thread;
   }
   remove(id) {
@@ -84,13 +87,13 @@ class ThreadStore {
     this.project().activeThreadId=this.data.activeId;
     this.save();
   }
-  begin(id, content) {
+  begin(id, content, attachments=[]) {
     const thread = this.require(id);
     if (!thread.messages.length && thread.title === 'New conversation') thread.title = content.slice(0,55);
-    const user = { id: randomUUID(), role: 'user', content, createdAt: now(), status: 'complete' };
+    const user = { id: randomUUID(), role: 'user', content, attachments:attachments.map(({id,name})=>({id,name})), createdAt: now(), status: 'complete' };
     const assistant = { id: randomUUID(), role: 'assistant', content: '', sources: [], activities: [], status: 'running', createdAt: now() };
-    thread.messages.push(user, assistant); thread.draft = ''; thread.updatedAt = now(); this.save();
-    return { thread, assistant };
+    thread.messages.push(user, assistant); thread.draft = '';thread.pendingAttachments=[]; thread.updatedAt = now(); this.save();
+    return { thread, user, assistant };
   }
 }
 module.exports = { ThreadStore };

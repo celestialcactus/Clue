@@ -5,7 +5,7 @@ function el(tag,text,cls){const node=document.createElement(tag);if(tag==='butto
 function notice(message=''){$('notice').textContent=message.replace(/^Error invoking remote method '[^']+': Error: /,'');$('notice').hidden=!message;}
 function scrollIfNearBottom(){const area=$('messages');if(area.scrollHeight-area.scrollTop-area.clientHeight<160)area.scrollTop=area.scrollHeight;}
 function setBusy(value){
- busy=value;for(const id of ['send','new','clear-web','rename','project-select','project-new','project-rename','new-note','save-note','use-document','edit-note'])$(id).disabled=value||(id==='send'&&!ready);
+ busy=value;for(const id of ['send','new','clear-web','rename','project-new','project-rename','new-note','save-note','use-document','edit-note'])$(id).disabled=value||(id==='send'&&!ready);
  $('stop').hidden=!value;$('prompt').disabled=value;$('note-name').disabled=value;$('note-text').disabled=value;
  document.querySelectorAll('.documents button,.documents input,.chat-row button,.retry').forEach(node=>node.disabled=value);
  if(!value)$('progress').textContent='';renderAttachments();publishWorkspace();
@@ -20,15 +20,7 @@ function publishWorkspace(){window.dispatchEvent(new Event('workspace-state'));}
 function renderDocs(){renderAttachments();publishWorkspace();if(preview?.id)$('use-document').textContent=selected.has(preview.id)?'Remove from chat context':'Use in chat';}
 async function removeFile(id){const file=documents.find(d=>d.id===id);if(!file||!confirm('Remove '+file.name+' from this project? Existing chat excerpts will remain.'))return;if(preview?.id===id&&!discardNote())return;await flushDraft();documents=await window.desk.remove(id);selected.delete(id);if(preview?.id===id)closePreview();thread.selected=[...selected];renderDocs();renderContext();}
 async function openChat(id){if(busy)return;await flushDraft();renderThread(await window.desk.load(id));await refresh();}
-function renderChats(){
- $('chats').replaceChildren();
- for(const c of chats){const row=el('div',null,'chat-row'),button=el('button',c.title,c.id===thread?.id?'active':'');button.title=c.title;button.disabled=busy;
-  button.onclick=async()=>{if(busy)return;try{await flushDraft();renderThread(await window.desk.load(c.id));await refresh();}catch(e){notice(e.message);}};
-  const remove=el('button','×','delete');remove.title='Delete conversation';remove.disabled=busy;
-  remove.onclick=async()=>{if(!confirm('Delete this conversation, its memory, and saved excerpts?'))return;try{await flushDraft();const activeId=await window.desk.deleteChat(c.id);if(thread?.id===c.id)renderThread(activeId?await window.desk.load(activeId):await window.desk.newChat());await refresh();}catch(e){notice(e.message);}};
-  row.append(button,remove);$('chats').append(row);
- }
-}
+function renderChats(){renderProjects();}
 function renderContext(){
  if(!thread)return;
  $('thread-context').textContent=selected.size?`${selected.size} document${selected.size===1?'':'s'} selected`:'Project context';
@@ -47,9 +39,10 @@ function appendMessage(message,index){
  const article=el('article',null,'message '+message.role);article.dataset.messageId=message.id;article.dataset.status=message.status;
  article.append(el('div',message.role==='user'?'You':'Desk Assistant','speaker'));
  if(message.role==='assistant')article.append(activitiesNode(message));
+ if(message.role==='user'&&message.attachments?.length){const cards=el('div',null,'message-attachments');for(const file of message.attachments){const button=el('button',null,'sent-attachment');button.title=file.name;button.setAttribute('aria-label','Preview sent file '+file.name);button.append(attachmentIcon(),el('span',file.name));button.onclick=()=>showDocument(file.id).catch(()=>notice('This file is no longer in the project. The original attachment name is preserved here.'));cards.append(button);}article.append(cards);}
  article.append(el('div',message.content,'body'));
  if(message.error){article.append(el('p',message.error,'message-error'));const retry=el('button','Retry this request','retry');retry.disabled=busy;retry.onclick=()=>{const previous=thread.messages[index-1];if(previous?.role==='user'){$('prompt').value=previous.content;$('composer').requestSubmit();}};article.append(retry);}
- if(message.sources?.length){const details=el('details',null,'sources');details.append(el('summary',`${message.sources.length} source passages · view evidence`));for(const s of message.sources){const box=el('div',null,'source');box.append(el('b',`[${s.citation}] ${s.label}`));if(s.retrieved)box.append(el('div','Retrieved '+new Date(s.retrieved).toLocaleDateString()));box.append(el('p',s.text));if(s.url){const link=el('button','Open public source ↗');link.onclick=()=>window.desk.openSource(s.url).catch(e=>notice(e.message));box.append(link);}details.append(box);}article.append(details);}
+ if(message.sources?.length){const details=el('details',null,'sources');details.append(el('summary',`${message.sources.length} source passages · view evidence`));for(const s of message.sources){const box=el('div',null,'source');box.append(el('b',`[${s.citation}] ${s.label}`));if(s.retrieved)box.append(el('div','Retrieved '+new Date(s.retrieved).toLocaleDateString()));box.append(el('p',s.text));if(s.url){const link=el('button','Open public source ↗');link.onclick=()=>window.desk.openSource(s.url).catch(e=>notice(e.message));box.append(link);}if(s.threadId){const link=el('button','Open conversation');link.onclick=()=>switchProject(projectId,s.threadId).catch(e=>notice(e.message));box.append(link);}details.append(box);}article.append(details);}
  $('messages').append(article);
 }
 function renderThread(value){
@@ -94,7 +87,23 @@ window.desk.onEvent(event=>{
 });
 (async()=>{const state=await refresh();if(!state)return;renderThread(state.activeId?await window.desk.load(state.activeId):await window.desk.newChat());await refresh();})().catch(e=>notice(e.message));
 setInterval(refresh,4000);
-function renderProjects(){const select=$('project-select');if(document.activeElement!==select){select.replaceChildren(...projects.map(p=>{const option=el('option',p.name);option.value=p.id;return option;}));select.value=projectId;}$('project-files-title').textContent=projects.find(p=>p.id===projectId)?.name||'Project files';}
+let projectTreeSignature='',projectTreeInitialized=false;const expandedProjects=new Set(),showAllProjects=new Set();
+async function switchProject(id,chatId){if(busy)return;if(id!==projectId&&!discardNote())return;await flushDraft();if(id!==projectId)closePreview();const value=await window.desk.loadProject(id,chatId);expandedProjects.add(id);await refresh();renderThread(value);}
+async function newProjectChat(id){if(busy)return;if(id!==projectId&&!discardNote())return;await flushDraft();if(id!==projectId)closePreview();const value=await window.desk.newChat(id);expandedProjects.add(id);await refresh();renderThread(value);$('prompt').focus();}
+function renderProjects(){
+ if(!projectTreeInitialized&&projectId){expandedProjects.add(projectId);projectTreeInitialized=true;}
+ $('project-files-title').textContent=projects.find(p=>p.id===projectId)?.name||'Project files';
+ const signature=JSON.stringify({projects,projectId,chat:thread?.id,busy,expanded:[...expandedProjects],all:[...showAllProjects]});if(signature===projectTreeSignature)return;projectTreeSignature=signature;
+ const tree=$('projects-tree');tree.replaceChildren();
+ for(const project of projects){const group=el('section',null,'project-group'),row=el('div',null,'project-row'+(project.id===projectId?' active-project':''));group.dataset.projectId=project.id;
+ const toggle=el('button',expandedProjects.has(project.id)?'⌄':'›','project-chevron');toggle.setAttribute('aria-label','Toggle '+project.name);toggle.setAttribute('aria-expanded',String(expandedProjects.has(project.id)));toggle.onclick=()=>{expandedProjects.has(project.id)?expandedProjects.delete(project.id):expandedProjects.add(project.id);renderProjects();};
+ const name=el('button',null,'project-name');name.title=project.name;name.setAttribute('aria-label','Open project '+project.name);name.append(folderIcon(),el('span',project.name));name.disabled=busy;name.onclick=()=>switchProject(project.id).catch(e=>notice(e.message));
+ const add=el('button','＋','project-add');add.title='New conversation in '+project.name;add.setAttribute('aria-label',add.title);add.disabled=busy;add.onclick=()=>newProjectChat(project.id).catch(e=>notice(e.message));row.append(toggle,name,add);group.append(row);
+ if(expandedProjects.has(project.id)){const list=el('div',null,'project-threads'),items=project.threads||[];for(const chat of (showAllProjects.has(project.id)?items:items.slice(0,5))){const chatRow=el('div',null,'chat-row'),button=el('button',chat.title,chat.id===thread?.id?'active':'');button.disabled=busy;button.title=chat.title;button.onclick=()=>switchProject(project.id,chat.id).catch(e=>notice(e.message));chatRow.append(button);
+ if(project.id===projectId){const remove=el('button','×','delete');remove.title='Delete conversation';remove.disabled=busy;remove.onclick=async()=>{if(!confirm('Delete this conversation? It will no longer be available to project history retrieval.'))return;try{await flushDraft();const activeId=await window.desk.deleteChat(chat.id);if(thread?.id===chat.id)renderThread(activeId?await window.desk.load(activeId):await window.desk.newChat());await refresh();}catch(e){notice(e.message);}};chatRow.append(remove);}list.append(chatRow);}
+ if(items.length>5){const more=el('button',showAllProjects.has(project.id)?'Show less':'Show more','show-more');more.onclick=()=>{showAllProjects.has(project.id)?showAllProjects.delete(project.id):showAllProjects.add(project.id);renderProjects();};list.append(more);}if(!items.length)list.append(el('p','No conversations yet','empty-project'));group.append(list);}tree.append(group);
+ }
+}
 function openNameDialog(mode,label,value=''){renameMode=mode;$('rename-label').textContent=label;$('rename-input').value=value;$('rename-dialog').showModal();$('rename-input').focus();$('rename-input').select();}
 function toggleFiles(open){$('files-pane').hidden=!open;$('pane-resizer').hidden=!open;localStorage.setItem('preview-open',String(open));if(open)applyPaneWidth(paneWidth);publishWorkspace();}
 function discardNote(){return !noteDirty||confirm('Discard unsaved changes to this note?');}
@@ -106,7 +115,6 @@ async function showDocument(id,offset=0){if(!discardNote())return;const request=
 function showWeb(result){if(!discardNote())return;const page=thread.research.pages.find(p=>p.sourceUrl===result.url||p.url===result.url)||result;preview={type:'web',url:result.url};noteDirty=false;toggleFiles(true);$('preview-empty').hidden=true;$('file-preview').hidden=false;$('note-editor').hidden=true;$('preview-content').hidden=false;$('preview-title').textContent=result.title;$('preview-content').replaceChildren(el('p',page.text));$('preview-prev').hidden=$('preview-next').hidden=$('use-document').hidden=$('edit-note').hidden=true;$('preview-position').textContent=page.retrieved?'Retrieved '+new Date(page.retrieved).toLocaleDateString():'';$('open-original').hidden=false;$('open-original').textContent='Open website ↗';}
 $('project-new').onclick=()=>openNameDialog('project-new','New project name');
 $('project-rename').onclick=()=>openNameDialog('project-rename','Project name',projects.find(p=>p.id===projectId)?.name||'');
-$('project-select').onchange=async()=>{if(!discardNote()){$('project-select').value=projectId;return;}try{await flushDraft();closePreview();renderThread(await window.desk.loadProject($('project-select').value));await refresh();}catch(e){notice(e.message);}};
 
 $('preview-close').onclick=()=>{if(discardNote())closePreview();};
 $('preview-prev').onclick=()=>showDocument(preview.id,Math.max(0,preview.offset-3)).catch(e=>notice(e.message));$('preview-next').onclick=()=>showDocument(preview.id,preview.offset+3).catch(e=>notice(e.message));
@@ -116,7 +124,7 @@ $('note-name').oninput=$('note-text').oninput=()=>{noteDirty=true;};
 $('save-note').onclick=async()=>{try{await flushDraft();setBusy(true);$('progress').textContent='Saving and indexing project note…';const result=await window.desk.saveNote({id:preview.id,name:$('note-name').value,text:$('note-text').value});documents=result.documents;noteDirty=false;await showDocument(result.id);renderDocs();}catch(e){notice(e.message);}finally{setBusy(false);}};
 
 $('browse-files').onclick=()=>$('search-files')?.click();
-$('use-document').onclick=async()=>{if(busy||!preview?.id)return;try{selected.has(preview.id)?selected.delete(preview.id):selected.add(preview.id);thread.selected=[...selected];await queuePatch({selected:[...selected]});renderContext();renderDocs();}catch(e){notice(e.message);}};
+$('use-document').onclick=async()=>{if(busy||!preview?.id)return;try{selected.has(preview.id)?selected.delete(preview.id):selected.add(preview.id);thread.selected=[...selected];thread.pendingAttachments=selected.has(preview.id)?[...new Set([...(thread.pendingAttachments||[]),preview.id])]:(thread.pendingAttachments||[]).filter(id=>id!==preview.id);await queuePatch({selected:[...selected],pendingAttachments:thread.pendingAttachments});renderContext();renderDocs();}catch(e){notice(e.message);}};
 $('edit-note').onclick=()=>{if(!preview?.editable)return;$('note-name').value=$('preview-title').textContent;$('note-text').value=preview.note;$('note-editor').hidden=false;$('preview-content').hidden=true;$('edit-note').hidden=true;$('note-text').focus();};
 $('cancel-note').onclick=()=>{if(!discardNote())return;noteDirty=false;if(preview?.id)showDocument(preview.id).catch(e=>notice(e.message));else closePreview();};
 let paneWidth=Number(localStorage.getItem('preview-width'))||380;
@@ -147,20 +155,22 @@ chatDropPane.addEventListener('drop',async e=>{
  if(busy||!thread){notice('Wait for the current task to finish before adding documents.');return;}
  const files=Array.from(e.dataTransfer.files);if(!files.length)return;
  const chatId=thread.id,pending=flushDraft();pendingAttachments=files.map(file=>({name:file.name}));setBusy(true);notice();$('progress').textContent='Adding and indexing dropped documents…';
- try{await pending;const result=await window.desk.importDropped(files,chatId);documents=result.documents;selected.clear();result.selected.forEach(id=>selected.add(id));thread.selected=[...selected];renderDocs();renderContext();notice([result.imported?`${result.imported} document${result.imported===1?'':'s'} added to this chat. Your message has not been sent.`:'',...result.errors].filter(Boolean).join('\n'));}
+ try{await pending;const result=await window.desk.importDropped(files,chatId);documents=result.documents;selected.clear();result.selected.forEach(id=>selected.add(id));thread.selected=[...selected];thread.pendingAttachments=result.pendingAttachments;renderDocs();renderContext();notice([result.imported?`${result.imported} document${result.imported===1?'':'s'} added to this chat. Your message has not been sent.`:'',...result.errors].filter(Boolean).join('\n'));}
  catch(error){notice(error.message);}finally{pendingAttachments=[];setBusy(false);await refresh();}
 });
 
 function attachmentIcon(){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d','M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6');svg.append(path);return svg;}
 function renderAttachments(){
- const files=documents.filter(d=>selected.has(d.id)),signature=JSON.stringify({files:files.map(d=>[d.id,d.name]),pendingAttachments,busy});if(signature===attachmentSignature)return;attachmentSignature=signature;
+ const files=documents.filter(d=>thread?.pendingAttachments?.includes(d.id)),signature=JSON.stringify({files:files.map(d=>[d.id,d.name]),pendingAttachments,busy});if(signature===attachmentSignature)return;attachmentSignature=signature;
  const tray=$('chat-attachments');tray.replaceChildren();tray.hidden=!files.length&&!pendingAttachments.length;
  for(const file of [...files,...pendingAttachments.map(d=>({...d,pending:true}))]){
   const card=el('div',null,'attachment-card');card.dataset.pending=String(!!file.pending);
   const button=el('button',null,'attachment-preview');button.title=file.name;button.setAttribute('aria-label',(file.pending?'Adding ':'Preview ')+file.name);button.disabled=!!file.pending;const visual=el('span',null,'attachment-visual');visual.append(attachmentIcon());
   const label=el('span',null,'attachment-label'),type=el('span',(file.name.split('.').pop()||'FILE').slice(0,5).toUpperCase(),'attachment-type');type.dataset.type=type.textContent.toLowerCase();label.append(type,el('span',file.name,'attachment-name'));button.append(visual,label);
   button.onclick=()=>showDocument(file.id).catch(e=>notice(e.message));card.append(button);
-  if(file.pending){card.append(el('span','Adding…','attachment-status'));}else{const remove=el('button','×','attachment-remove');remove.title='Remove from chat context';remove.setAttribute('aria-label','Remove '+file.name+' from chat');remove.disabled=busy;remove.onclick=async()=>{if(busy)return;try{const next=[...selected].filter(id=>id!==file.id);await queuePatch({selected:next});selected.delete(file.id);thread.selected=next;renderDocs();renderContext();$('prompt').focus();}catch(e){notice(e.message);}};card.append(remove);}
+  if(file.pending){card.append(el('span','Adding…','attachment-status'));}else{const remove=el('button','×','attachment-remove');remove.title='Remove from chat context';remove.setAttribute('aria-label','Remove '+file.name+' from chat');remove.disabled=busy;remove.onclick=async()=>{if(busy)return;try{const next=[...selected].filter(id=>id!==file.id);const pending=(thread.pendingAttachments||[]).filter(id=>id!==file.id);await queuePatch({selected:next,pendingAttachments:pending});selected.delete(file.id);thread.selected=next;thread.pendingAttachments=pending;renderDocs();renderContext();$('prompt').focus();}catch(e){notice(e.message);}};card.append(remove);}
   tray.append(card);
  }
 }
+
+function folderIcon(){const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','folder-icon');svg.setAttribute('aria-hidden','true');const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d','M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2 M3 7h16a2 2 0 0 1 2 2l-2 10H3L1 9a2 2 0 0 1 2-2Z');svg.append(path);return svg;}

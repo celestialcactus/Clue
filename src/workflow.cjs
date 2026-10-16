@@ -4,7 +4,7 @@ const {completedMessages}=require('./context.cjs');
 const {buildDocumentQuery}=require('./search-query.cjs');
 const {runAgent}=require('./agent.cjs');
 
-async function executeWorkflow({thread,assistant,message,library,runtime,searchWeb,readWeb,projectName='',signal,onActivity=()=>{},onDelta=()=>{},save=()=>{}}){
+async function executeWorkflow({thread,assistant,message,library,runtime,searchWeb,readWeb,projectName='',getProjectHistory,signal,onActivity=()=>{},onDelta=()=>{},save=()=>{}}){
  const activity=async(kind,label,fn,detail='')=>{
   signal.throwIfAborted();const event={id:randomUUID(),kind,label,detail,status:'running',startedAt:new Date().toISOString()};
   assistant.activities.push(event);save();onActivity({...event});
@@ -52,7 +52,8 @@ async function executeWorkflow({thread,assistant,message,library,runtime,searchW
  }
  const web=thread.research.results.map(r=>pages.find(p=>p.sourceUrl===r.url||p.url===r.url)||{...r,text:'Search snippet only: '+r.text});
  const priorSources=(previous?.sources||[]).filter(s=>(!intent.requestedWeb&&!thread.ignorePriorWeb)||!s.url);
- const result=await runAgent({message,thread,history:completedMessages(history),memory:thread.memory.summary,library,runtime,web,priorSources,seedPassages,selected:thread.selected,signal,activity,onDelta,intent,observations,readPublic:intent.allowNetwork&&intent.requestedWeb?readPublic:undefined});
+ const projectSources=getProjectHistory?await activity('project_context','Finding relevant history from other conversations in this project',async()=>{const sources=getProjectHistory();for(const source of sources)source.text=await runtime.fitText(source.text,220,signal);return sources;}):[];
+ const result=await runAgent({message,thread,projectSources,history:completedMessages(history),memory:thread.memory.summary,library,runtime,web,priorSources,seedPassages,selected:thread.selected,signal,activity,onDelta,intent,observations,readPublic:intent.allowNetwork&&intent.requestedWeb?readPublic:undefined});
  return {...result,intent};
 }
 module.exports={executeWorkflow};

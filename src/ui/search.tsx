@@ -99,3 +99,5 @@ function ComposerTools(){const state=useWorkspace();return <Button id="composer-
 createRoot(document.getElementById('composer-tools-root')!).render(<ComposerTools/>);
 
 import './chat-menu'
+
+import './response'

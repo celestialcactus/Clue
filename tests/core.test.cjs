@@ -27,6 +27,16 @@ test('agent rejects read actions outside selected document scope',async()=>{
 test('cancellation prevents inference',async()=>{
  let called=false;await assert.rejects(runAgent({message:'Question',library:{search:()=>[],list:()=>[]},runtime:{complete:()=>{called=true;}},signal:AbortSignal.abort()}));assert.equal(called,false);
 });
+
+test('supporting passages preserve literal Markdown and HTML characters as quoted data',async()=>{
+ const source={id:'doc',name:'Safety_[draft]',part:1,total:1,text:'Use **gloves**. <img src="tracker"> [link](javascript:alert)'};
+ const result=await runAgent({message:'Summarize the document',library:{list:()=>[{id:'doc',name:source.name}],search:()=>[source],read:()=>[source]},runtime:{complete:async(_m,_s,json)=>json?'{"action":"answer"}':'Use gloves [S1].'},signal:new AbortController().signal});
+ assert.ok(result.answer.includes('### Supporting passages'));
+ assert.ok(result.answer.includes('Safety\\_\\[draft\\]'));
+ assert.ok(result.answer.includes('\\*\\*gloves\\*\\*'));
+ assert.ok(result.answer.includes('\\<img'));
+ assert.doesNotMatch(result.answer,/function repeatsPreviousAnswer/);
+});
 test('Word and PDF imports extract text locally with PDF page references',async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'desk-formats-'));try{
   const JSZip=require('jszip');const zip=new JSZip();zip.file('[Content_Types].xml','<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');zip.file('_rels/.rels','<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');zip.file('word/document.xml','<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Annual training occurs in September.</w:t></w:r></w:p></w:body></w:document>');

@@ -103,7 +103,7 @@ class ThreadStore {
     if (typeof patch.draft === 'string') thread.draft = patch.draft.slice(0,4000);
     if (Array.isArray(patch.selected)) thread.selected = [...new Set(patch.selected.filter(s => typeof s === 'string'))];
     if (Array.isArray(patch.pendingAttachments))thread.pendingAttachments=[...new Set(patch.pendingAttachments.filter(id=>thread.selected.includes(id)))];
-    this.save(); return thread;
+    if(hasContext(thread))this.save(); return thread;
   }
   archiveList(){return this.data.threads.filter(t=>hasContext(t)&&t.archived).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,projectId,pinned})=>({id,title,projectId,pinned:!!pinned,archived:true}));}
   manage(id,patch){

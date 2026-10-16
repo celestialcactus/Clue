@@ -13,11 +13,22 @@ function setBusy(value){
  updateJobControls();renderAttachments();publishWorkspace();
 }
 function queuePatch(patch){
- const id=thread?.id;if(!id)return Promise.resolve();$('saved-state').textContent='Saving…';
- patchQueue=patchQueue.catch(()=>{}).then(()=>window.desk.update(id,patch)).then(()=>{$('saved-state').textContent=thread?.messages.length?'Saved locally':'Not saved until you send';});
- patchQueue.catch(e=>{notice(e.message);$('saved-state').textContent='Could not save';});return patchQueue;
+ const id=thread?.id;if(!id)return Promise.resolve();
+ if(Object.keys(patch).length===1&&'draft' in patch&&thread.draft===patch.draft)return patchQueue;
+ const savingThread=thread;
+ patchQueue=patchQueue.catch(()=>{}).then(()=>window.desk.update(id,patch)).then(()=>{if('draft' in patch)savingThread.draft=patch.draft;if(thread?.id===id)$('saved-state').textContent=thread.messages.length?'Saved locally':'Not saved until you send';});
+ patchQueue.catch(e=>{if(thread?.id===id){notice(e.message);$('saved-state').textContent='Could not save draft';}});return patchQueue;
 }
 async function flushDraft(){clearTimeout(draftTimer);if(thread&&!busy)await queuePatch({draft:$('prompt').value});await patchQueue;}
+function renderBody(node,message){
+ if(message.role!=='assistant'||!window.renderAssistantResponse){node.textContent=message.content;return;}
+ window.renderAssistantResponse(node,message.content,{sources:message.sources||[],links:thread?.research?.results||[],onLink:url=>window.desk.openSource(url).catch(e=>notice(e.message)),onSource:source=>{
+  if(source.url)window.desk.openSource(source.url).catch(e=>notice(e.message));
+  else if(source.documentId)showDocument(source.documentId,Math.max(0,(source.part||1)-1)).catch(e=>notice(e.message));
+  else if(source.threadId)openChat(source.threadId).catch(e=>notice(e.message));
+ }});
+}
+window.addEventListener('response-renderer-ready',()=>{if(thread)for(const message of thread.messages){const node=$('messages').querySelector('[data-message-id="'+message.id+'"] .body');if(node)renderBody(node,message);}});
 function publishWorkspace(){window.dispatchEvent(new Event('workspace-state'));}
 function renderDocs(){renderAttachments();publishWorkspace();if(preview?.id)$('use-document').textContent=selected.has(preview.id)?'Remove from chat context':'Use in chat';}
 async function removeFile(id){const file=documents.find(d=>d.id===id);if(!file||!confirm('Remove '+file.name+' from '+(file.scope==='project'?'the shared project':'this chat')+'? Existing chat excerpts will remain.'))return;if(preview?.id===id&&!discardNote())return;await flushDraft();documents=await window.desk.remove(id);selected.delete(id);if(preview?.id===id)closePreview();thread.selected=[...selected];renderDocs();renderContext();}
@@ -42,7 +53,7 @@ function appendMessage(message,index){
  article.append(el('div',message.role==='user'?'You':'Clue','speaker'));
  if(message.role==='assistant')article.append(activitiesNode(message));
  if(message.role==='user'&&message.attachments?.length){const cards=el('div',null,'message-attachments');for(const file of message.attachments){const button=el('button',null,'sent-attachment');button.title=file.name;button.setAttribute('aria-label','Preview sent file '+file.name);button.append(attachmentIcon(),el('span',file.name));makeFileDraggable(button,file.id);button.onclick=()=>showDocument(file.id).catch(()=>notice('This file is no longer in the project. The original attachment name is preserved here.'));cards.append(button);}article.append(cards);}
- article.append(el('div',message.content,'body'));
+ const body=el('div',null,'body');renderBody(body,message);article.append(body);
  if(message.error){article.append(el('p',message.error,'message-error'));const retry=el('button','Retry this request','retry');retry.disabled=busy;retry.onclick=()=>{const previous=thread.messages[index-1];if(previous?.role==='user'){$('prompt').value=previous.content;$('composer').requestSubmit();}};article.append(retry);}
  $('messages').append(article);
 }
@@ -59,7 +70,7 @@ $('new').onclick=async()=>{try{if(!discardNote())return;await flushDraft();close
 $('clear-web').onclick=async()=>{try{await flushDraft();thread=await window.desk.clearWeb(thread.id);renderContext();}catch(e){notice(e.message);}};
 async function importFiles(){try{await flushDraft();setBusy(true);notice();$('progress').textContent='Adding documents to your local library…';const result=await window.desk.import(thread.id);documents=result.documents;selected.clear();result.selected.forEach(id=>selected.add(id));thread.selected=result.selected;thread.pendingAttachments=result.pendingAttachments;renderDocs();renderContext();if(result.errors.length)notice(result.errors.join('\n'));}catch(e){notice(e.message);}finally{setBusy(false);}};
 
-$('prompt').oninput=()=>{clearTimeout(draftTimer);$('saved-state').textContent='Saving…';draftTimer=setTimeout(()=>queuePatch({draft:$('prompt').value}),300);};
+$('prompt').oninput=()=>{clearTimeout(draftTimer);draftTimer=setTimeout(()=>{if(!busy)queuePatch({draft:$('prompt').value}).catch(()=>{});},1200);};
 $('prompt').onblur=()=>{if(!busy)flushDraft().catch(e=>notice(e.message));};
 $('composer').onsubmit=async event=>{
  event.preventDefault();if(busy||pendingJob()||!ready||!thread)return;const message=$('prompt').value.trim();if(!message)return;
@@ -84,7 +95,7 @@ window.desk.onEvent(event=>{
  if(event.type==='activity'){
   const i=message.activities.findIndex(a=>a.id===event.activity.id);if(i>=0)message.activities[i]=event.activity;else message.activities.push(event.activity);
   article.querySelector('.activities').replaceWith(activitiesNode(message));if(event.activity.status==='running')$('progress').textContent=event.activity.label;
- }else if(event.type==='delta'){message.content+=event.delta;article.querySelector('.body').textContent=message.content;}
+ }else if(event.type==='delta'){message.content+=event.delta;renderBody(article.querySelector('.body'),message);}
  scrollIfNearBottom();
 });
 (async()=>{const state=await refresh();if(!state)return;renderThread(state.activeId?await window.desk.load(state.activeId):await window.desk.newChat());await refresh();})().catch(e=>notice(e.message));

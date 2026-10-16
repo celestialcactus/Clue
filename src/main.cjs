@@ -11,6 +11,8 @@ let win,library,libraries,embedder,runtime,store,jobs,importing=false;
 // Keep the existing profile when changing the display/product name.
 const legacyProfiles=['Desk Assistant','desk-assistant'].map(name=>path.join(app.getPath('appData'),name));
 app.setPath('userData',legacyProfiles.find(dir=>fs.existsSync(path.join(dir,'threads.json')))||legacyProfiles[1]);app.setName('Clue');
+const explicitProfile=app.commandLine.getSwitchValue('user-data-dir');
+if(explicitProfile&&path.isAbsolute(explicitProfile))app.setPath('userData',explicitProfile);
 if(!app.isPackaged&&process.env.DESK_TEST_PROFILE)app.setPath('userData',path.resolve(process.env.DESK_TEST_PROFILE));
 const locked=app.requestSingleInstanceLock();
 if(!locked)app.quit();

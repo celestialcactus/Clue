@@ -23,7 +23,7 @@ npm run dev
 
 Asset downloads happen only during developer setup. Runtime/model revisions and checksums are pinned in the two manifests under `assets/`. Large binaries, private profiles, test data and build output are excluded from Git. No remote Git repository is configured automatically.
 
-Previous installer EXEs, blockmaps and ZIPs have been removed. No replacement installer was generated for this update. An older `dist/win-unpacked` development artifact may remain; run source to test current behavior. Packaging is an explicit, separate action with `npm run build` when requested.
+Build the Windows installer with `npm run build`. The output in `dist/` bundles the model, embeddings and inference runtime. For the 0.3.0 test release, share `dist/Clue-0.3.0-Windows-x64.zip`: extract it and run the included installer. No Node.js or separate model installation is needed. The installer is unsigned. Build output and local user data are excluded from GitHub; continue development with `npm run dev`.
 
 ## Using the app
 

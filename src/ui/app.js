@@ -249,7 +249,7 @@ async function saveProjectWithFolder(payload,existingId){
 async function refreshProjectFolder(id){if(busy)return;const pending=flushDraft();setBusy(true);$('stop').hidden=true;try{await pending;await window.desk.refreshProjectSource(id);closePreview();}finally{setBusy(false);await refresh();}}
 
 async function showPdfPage(page){
- if(!preview?.pdf)return;const current=preview,request=++previewRequest,chat=thread.id;current.textMode=false;$('pdf-mode').textContent='Extracted text';$('pdf-page').disabled=$('pdf-mode').disabled=true;$('preview-prev').disabled=$('preview-next').disabled=true;$('preview-prev').hidden=$('preview-next').hidden=false;$('preview-content').replaceChildren(el('p','Rendering page…','pdf-loading'));
+ if(!preview?.pdf)return;const current=preview,request=++previewRequest,chat=thread.id;current.textMode=false;document.querySelector('.pdf-zoom-controls').hidden=false;$('pdf-mode').textContent='Extracted text';$('pdf-page').disabled=$('pdf-mode').disabled=true;$('preview-prev').disabled=$('preview-next').disabled=true;$('preview-prev').hidden=$('preview-next').hidden=false;$('preview-content').replaceChildren(el('p','Rendering page…','pdf-loading'));
  try{const result=await window.desk.renderDocumentPage(chat,current.id,page);if(request!==previewRequest||thread.id!==chat||preview!==current)return;
   current.page=result.page;current.pages=result.total;current.pageText=result.text;$('pdf-page').value=result.page;$('pdf-page').max=result.total;$('preview-position').textContent='Page '+result.page+' of '+result.total;
   const img=el('img',null,'pdf-page-image');img.src=result.dataUrl;img.alt=$('preview-title').textContent+' · Page '+result.page;img.dataset.width=String(result.cssWidth);const sheet=el('div',null,'pdf-sheet');sheet.append(img);$('preview-content').replaceChildren(sheet);applyPdfZoom();$('preview-content').scrollTop=0;
@@ -258,5 +258,15 @@ async function showPdfPage(page){
  finally{if(request===previewRequest){$('pdf-page').disabled=$('pdf-mode').disabled=false;}}
 }
 function applyPdfZoom(){const img=$('preview-content').querySelector('.pdf-page-image');if(!img)return;const zoom=$('pdf-zoom').value;img.style.width=zoom==='fit'?'100%':Math.round(Number(img.dataset.width)*Number(zoom)/100)+'px';img.style.maxWidth=zoom==='fit'?'100%':'none';}
-function showPdfText(){if(!preview?.pdf)return;previewRequest++;preview.textMode=true;$('pdf-mode').textContent='Page view';$('pdf-mode').disabled=false;$('pdf-page').disabled=true;$('preview-content').replaceChildren();for(const part of (preview.pageText!==undefined?[{page:preview.page,text:preview.pageText}]:preview.extracted.parts)){const section=el('section',null,'extracted-page');section.append(el('small','Page '+part.page),el('p',part.text));$('preview-content').append(section);}$('preview-position').textContent='Extracted passages · formatting may differ';$('preview-prev').hidden=$('preview-next').hidden=true;}
+function showPdfText(){if(!preview?.pdf)return;previewRequest++;preview.textMode=true;document.querySelector('.pdf-zoom-controls').hidden=true;$('pdf-mode').textContent='Page view';$('pdf-mode').disabled=false;$('pdf-page').disabled=true;$('preview-content').replaceChildren();for(const part of (preview.pageText!==undefined?[{page:preview.page,text:preview.pageText}]:preview.extracted.parts)){const section=el('section',null,'extracted-page');section.append(el('small','Page '+part.page),el('p',part.text));$('preview-content').append(section);}$('preview-position').textContent='Extracted passages · formatting may differ';$('preview-prev').hidden=$('preview-next').hidden=true;}
 $('pdf-mode').onclick=()=>preview.textMode?showPdfPage(preview.page):showPdfText();$('pdf-zoom').onchange=applyPdfZoom;$('pdf-page').onchange=()=>{const page=Number($('pdf-page').value);if(Number.isInteger(page)&&page>=1&&page<=preview.pages)showPdfPage(page);else $('pdf-page').value=preview.page;};
+
+function stepPdfZoom(direction){
+ const img=$('preview-content').querySelector('.pdf-page-image');if(!img||preview?.textMode)return;
+ const steps=[50,75,100,125,150,200],current=$('pdf-zoom').value==='fit'?img.getBoundingClientRect().width/Number(img.dataset.width)*100:Number($('pdf-zoom').value);
+ const next=direction>0?steps.find(n=>n>current+1):steps.slice().reverse().find(n=>n<current-1);
+ $('pdf-zoom').value=String(next??(direction>0?200:50));applyPdfZoom();
+}
+$('pdf-zoom-in').onclick=()=>stepPdfZoom(1);
+$('pdf-zoom-out').onclick=()=>stepPdfZoom(-1);
+$('pdf-fit').onclick=()=>{$('pdf-zoom').value='fit';applyPdfZoom();};

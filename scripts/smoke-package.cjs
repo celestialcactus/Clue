@@ -1,7 +1,7 @@
 const {_electron:electron}=require('@playwright/test');const path=require('node:path');const assert=require('node:assert/strict');
 (async()=>{
  const profile=path.resolve('.test-data/packaged-'+Date.now());
- const app=await electron.launch({executablePath:path.resolve('dist/win-unpacked/Desk Assistant.exe'),args:['--user-data-dir='+profile]});
+ const app=await electron.launch({executablePath:path.resolve('dist/win-unpacked/Clue.exe'),args:['--user-data-dir='+profile]});
  try{
   assert.equal(await app.evaluate(({app})=>app.isPackaged),true);
   assert.equal(path.resolve(await app.evaluate(({app})=>app.getPath('userData'))),profile);

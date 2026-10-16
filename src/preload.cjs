@@ -1,7 +1,7 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('desk',{
  activity:()=>ipcRenderer.invoke('activity-list'),
- status:()=>ipcRenderer.invoke('status'),import:()=>ipcRenderer.invoke('import'),remove:id=>ipcRenderer.invoke('remove',id),
+ status:()=>ipcRenderer.invoke('status'),import:chatId=>ipcRenderer.invoke('import',chatId),remove:id=>ipcRenderer.invoke('remove',id),
  searchChats:query=>ipcRenderer.invoke('chat-search',query),
  importDropped:(files,chatId)=>ipcRenderer.invoke('import-dropped',Array.from(files,file=>webUtils.getPathForFile(file)),chatId),
  moveChat:(id,projectId)=>ipcRenderer.invoke('chat-move',id,projectId),
@@ -10,6 +10,6 @@ contextBridge.exposeInMainWorld('desk',{
  chooseFolder:()=>ipcRenderer.invoke('folder-choose'),updateProjectSource:(id,payload)=>ipcRenderer.invoke('project-source-update',id,payload),refreshProjectSource:id=>ipcRenderer.invoke('project-source-refresh',id),openProjectSource:id=>ipcRenderer.invoke('project-source-open',id),
  newProject:name=>ipcRenderer.invoke('project-create',name),loadProject:(id,threadId)=>ipcRenderer.invoke('project-load',id,threadId),renameProject:name=>ipcRenderer.invoke('project-rename',name),
  readDocument:(id,offset)=>ipcRenderer.invoke('document-read',id,offset),openDocument:id=>ipcRenderer.invoke('document-open',id),saveNote:payload=>ipcRenderer.invoke('note-save',payload),
- clearWeb:id=>ipcRenderer.invoke('web-clear',id),cancel:()=>ipcRenderer.invoke('cancel'),ask:payload=>ipcRenderer.invoke('ask',payload),openSource:url=>ipcRenderer.invoke('open-source',url),export:id=>ipcRenderer.invoke('export',id),
+ clearWeb:id=>ipcRenderer.invoke('web-clear',id),cancel:id=>ipcRenderer.invoke('cancel',id),ask:payload=>ipcRenderer.invoke('ask',payload),openSource:url=>ipcRenderer.invoke('open-source',url),export:id=>ipcRenderer.invoke('export',id),
  onEvent:fn=>ipcRenderer.on('thread-event',(_e,event)=>fn(event)),
 });

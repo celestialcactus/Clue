@@ -11,7 +11,8 @@ async function executeWorkflow({thread,assistant,message,library,runtime,searchW
   try{const result=await fn();signal.throwIfAborted();event.status='complete';event.finishedAt=new Date().toISOString();save();onActivity({...event});return result;}
   catch(e){event.status=signal.aborted?'stopped':'failed';event.detail=e.message;event.finishedAt=new Date().toISOString();save();onActivity({...event});throw e;}
  };
- const history=thread.messages.slice(0,-2);
+ const turnIndex=thread.messages.findIndex(m=>m.id===assistant.id);
+ const history=thread.messages.slice(0,Math.max(0,turnIndex-1));
  const previous=history.filter(m=>m.role==='assistant'&&m.status==='complete').at(-1);
  const named=library.list().filter(d=>message.toLowerCase().includes(d.name.toLowerCase())||message.toLowerCase().includes(d.name.split(/[\\/]/).pop().toLowerCase())).map(d=>d.id);
  if(named.length)thread.selected=named;
@@ -25,8 +26,11 @@ async function executeWorkflow({thread,assistant,message,library,runtime,searchW
  if(intent.documentInformed){
   seedPassages=await activity('documents','Finding document context for public research',()=>library.search(message,thread.selected));
   if(!seedPassages.length)for(const doc of library.list().filter(d=>!thread.selected.length||thread.selected.includes(d.id)).slice(0,3))seedPassages.push(...library.read(doc.id,0).slice(0,1));
-  intent.query=await activity('query','Developing a public research topic from document context',()=>buildDocumentQuery({message,intent,passages:seedPassages.slice(0,5),projectName,runtime,signal}));
+  const opening=library.list().filter(d=>!thread.selected.length||thread.selected.includes(d.id)).slice(0,3).flatMap(doc=>library.read(doc.id,0).slice(0,2));
+  intent.query=await activity('query','Developing a public research topic from document context',()=>buildDocumentQuery({message,intent,passages:[...opening,...seedPassages].slice(0,7),projectName,runtime,signal}));
   if(!intent.query){const answer='I could not form a useful public query without including identifying information. Which public topic or standard should I research?';thread.pendingWeb=true;onDelta(answer);return {answer,sources:[],steps:0};}
+  const focused=await activity('documents','Matching document passages to the research topic',()=>library.search(intent.query,thread.selected));
+  const seen=new Set();seedPassages=[...opening,...focused,...seedPassages].filter(p=>{const key=p.id+':'+p.part;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,8);
  }
  const observations=[];
  if(intent.requestedWeb){

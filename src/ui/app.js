@@ -4,11 +4,13 @@ const selected=new Set(),welcome=$('welcome').cloneNode(true);
 function el(tag,text,cls){const node=document.createElement(tag);if(tag==='button')node.type='button';if(text)node.textContent=text;if(cls)node.className=cls;return node;}
 function notice(message=''){$('notice').textContent=message.replace(/^Error invoking remote method '[^']+': Error: /,'');$('notice').hidden=!message;}
 function scrollIfNearBottom(){const area=$('messages');if(area.scrollHeight-area.scrollTop-area.clientHeight<160)area.scrollTop=area.scrollHeight;}
+function pendingJob(){return thread?.messages.find(m=>m.role==='assistant'&&['queued','running'].includes(m.status));}
+function updateJobControls(){const job=pendingJob();$('send').disabled=busy||!ready||!!job;$('stop').hidden=!job;$('stop').textContent=job?.status==='queued'?'Cancel queued':'Stop';$('composer-add')?.toggleAttribute('disabled',busy||!!job);if(!busy)$('progress').textContent=job?.status==='queued'?'Queued · You can work in another chat':job?'Working · You can switch chats':'';}
 function setBusy(value){
  busy=value;for(const id of ['send','new','clear-web','rename','project-new','project-rename','new-note','save-note','use-document','edit-note'])$(id).disabled=value||(id==='send'&&!ready);
- $('stop').hidden=!value;$('prompt').disabled=value;$('note-name').disabled=value;$('note-text').disabled=value;
+ $('prompt').disabled=value;$('note-name').disabled=value;$('note-text').disabled=value;
  document.querySelectorAll('.documents button,.documents input,.chat-row button,.retry').forEach(node=>node.disabled=value);
- if(!value)$('progress').textContent='';renderAttachments();publishWorkspace();
+ updateJobControls();renderAttachments();publishWorkspace();
 }
 function queuePatch(patch){
  const id=thread?.id;if(!id)return Promise.resolve();$('saved-state').textContent='Saving…';
@@ -32,7 +34,7 @@ function renderContext(){
 function activitiesNode(message){
  const details=el('details',null,'activities');details.open=message.status==='running';
  const running=(message.activities||[]).find(a=>a.status==='running');const count=message.activities?.length||0;
- details.append(el('summary',running?.label||(message.status==='running'?'Starting your request…':`${count} actions · ${message.status==='complete'?'finished':message.status}`)));
+ details.append(el('summary',running?.label||(message.status==='queued'?'Queued · waiting for the local model':message.status==='running'?'Starting your request…':`${count} actions · ${message.status==='complete'?'finished':message.status}`)));
  const list=el('ol');for(const a of message.activities||[]){const row=el('li',null,a.status);row.append(el('span',a.status==='running'?'◌':a.status==='complete'?'✓':a.status==='failed'?'!':'—','activity-icon'),el('span',a.label));if(a.detail)row.append(el('small',a.detail));list.append(row);}details.append(list);return details;
 }
 function appendMessage(message,index){
@@ -48,26 +50,26 @@ function renderThread(value){
  if(thread?.id!==value.id){$('research').open=false;$('progress').textContent='';notice();}
  thread=value;selected.clear();thread.selected.forEach(id=>selected.add(id));$('title').textContent=thread.title;$('prompt').value=thread.draft||'';
  $('messages').replaceChildren();if(!thread.messages.length)$('messages').append(welcome.cloneNode(true));else thread.messages.forEach(appendMessage);
- renderDocs();renderContext();renderChats();$('messages').scrollTop=$('messages').scrollHeight;$('saved-state').textContent=thread.messages.length?'Saved locally':'Not saved until you send';
+ updateJobControls();renderDocs();renderContext();renderChats();$('messages').scrollTop=$('messages').scrollHeight;$('saved-state').textContent=thread.messages.length?'Saved locally':'Not saved until you send';
 }
 async function refresh(){
- try{const state=await window.desk.status();ready=state.ready;documents=state.documents;chats=state.chats;projects=state.projects;recents=state.recents||[];projectId=state.activeProjectId;$('model-status').textContent=state.state;$('model-dot').classList.toggle('amber',!ready);$('send').disabled=busy||!ready;renderProjects();renderDocs();renderChats();return state;}catch(e){notice(e.message);}
+ try{const state=await window.desk.status();ready=state.ready;documents=state.documents;chats=state.chats;projects=state.projects;recents=state.recents||[];projectId=state.activeProjectId;$('model-status').textContent=state.state;$('model-dot').classList.toggle('amber',!ready);updateJobControls();renderProjects();renderDocs();renderChats();return state;}catch(e){notice(e.message);}
 }
 $('new').onclick=async()=>{try{if(!discardNote())return;await flushDraft();closePreview();renderThread(await window.desk.newChat());notice();await refresh();$('prompt').focus();}catch(e){notice(e.message);}};
 $('clear-web').onclick=async()=>{try{await flushDraft();thread=await window.desk.clearWeb(thread.id);renderContext();}catch(e){notice(e.message);}};
-async function importFiles(){try{await flushDraft();setBusy(true);notice();$('progress').textContent='Adding documents to your local library…';const result=await window.desk.import();documents=result.documents;renderDocs();if(result.errors.length)notice(result.errors.join('\n'));}catch(e){notice(e.message);}finally{setBusy(false);}};
+async function importFiles(){try{await flushDraft();setBusy(true);notice();$('progress').textContent='Adding documents to your local library…';const result=await window.desk.import(thread.id);documents=result.documents;selected.clear();result.selected.forEach(id=>selected.add(id));thread.selected=result.selected;thread.pendingAttachments=result.pendingAttachments;renderDocs();renderContext();if(result.errors.length)notice(result.errors.join('\n'));}catch(e){notice(e.message);}finally{setBusy(false);}};
 
 $('prompt').oninput=()=>{clearTimeout(draftTimer);$('saved-state').textContent='Saving…';draftTimer=setTimeout(()=>queuePatch({draft:$('prompt').value}),300);};
 $('prompt').onblur=()=>{if(!busy)flushDraft().catch(e=>notice(e.message));};
 $('composer').onsubmit=async event=>{
- event.preventDefault();if(busy||!ready||!thread)return;const message=$('prompt').value.trim();if(!message)return;
+ event.preventDefault();if(busy||pendingJob()||!ready||!thread)return;const message=$('prompt').value.trim();if(!message)return;
  const pendingDraft=flushDraft();setBusy(true);
  try{await pendingDraft;notice();$('prompt').value='';const result=await window.desk.ask({message,chatId:thread.id,selected:[...selected]});renderThread(result.thread);}
  catch(e){notice(e.message);$('prompt').value=message;}
  finally{setBusy(false);await refresh();$('prompt').focus();}
 };
 $('prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('composer').requestSubmit();}};
-$('stop').onclick=()=>window.desk.cancel().catch(e=>notice(e.message));
+$('stop').onclick=()=>window.desk.cancel(thread?.id).catch(e=>notice(e.message));
 $('export').onclick=()=>thread?window.desk.export(thread.id).catch(e=>notice(e.message)):notice('Start a conversation before exporting.');
 $('rename').onclick=()=>openNameDialog('thread','Conversation name',thread.title);
 $('rename-cancel').onclick=()=>$('rename-dialog').close();
@@ -75,9 +77,8 @@ $('rename-form').onsubmit=async e=>{e.preventDefault();try{const title=$('rename
 $('messages').onclick=e=>{const button=e.target.closest('[data-prompt]');if(button){$('prompt').value=button.dataset.prompt;$('prompt').focus();$('prompt').dispatchEvent(new Event('input'));}};
 window.desk.onEvent(event=>{
  if(event.type==='folder-progress'){window.dispatchEvent(new CustomEvent('folder-progress',{detail:event}));$('progress').textContent=event.label;return;}
- if(event.threadId!==thread?.id)return;
- if(event.type==='started'){renderThread(event.thread);setBusy(true);refresh();return;}
- if(event.type==='finished'){renderThread(event.thread);return;}
+ if(event.threadId!==thread?.id){if(['queued','started','finished'].includes(event.type))refresh();return;}
+ if(['queued','started','finished'].includes(event.type)){const draft=$('prompt').value;renderThread(event.thread);if(event.type!=='queued')$('prompt').value=draft;updateJobControls();refresh();return;}
  const message=thread.messages.find(m=>m.id===event.messageId);if(!message)return;
  const article=[...$('messages').querySelectorAll('.message')].find(n=>n.dataset.messageId===message.id);if(!article)return;
  if(event.type==='activity'){
@@ -139,7 +140,7 @@ divider.onpointermove=e=>{if(!dragging)return;const desired=window.innerWidth-e.
 function finishResize(e){if(!dragging)return;dragging=false;document.body.classList.remove('resizing');divider.classList.remove('will-collapse');if(divider.hasPointerCapture(e.pointerId))divider.releasePointerCapture(e.pointerId);if(collapseOnRelease){applyPaneWidth(dragStartWidth);toggleFiles(false);}else localStorage.setItem('preview-width',String(paneWidth));}
 divider.onpointerup=finishResize;divider.onpointercancel=finishResize;
 divider.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();applyPaneWidth(paneWidth+(e.key==='ArrowLeft'?24:-24));localStorage.setItem('preview-width',String(paneWidth));}else if(e.key==='Enter'){e.preventDefault();toggleFiles(false);$('toggle-files')?.focus();}};
-window.workspaceUI={snapshot:()=>({documents,chats,projectId,project:projects.find(p=>p.id===projectId),projectName:projects.find(p=>p.id===projectId)?.name||'Standalone chat',threadId:thread?.id,busy,paneOpen:!$('files-pane').hidden}),openProject:id=>switchProject(id),activity:()=>window.desk.activity(),chooseFolder:()=>window.desk.chooseFolder(),saveProject:saveProjectWithFolder,refreshSource:refreshProjectFolder,openSourceFolder:id=>window.desk.openProjectSource(id),searchChats:query=>window.desk.searchChats(query),preview:showDocument,openChat,removeFile,importFiles,togglePane:toggleFiles};
+window.workspaceUI={snapshot:()=>({documents,chats,projectId,project:projects.find(p=>p.id===projectId),projectName:projects.find(p=>p.id===projectId)?.name||'Standalone chat',threadId:thread?.id,busy,taskPending:!!pendingJob(),paneOpen:!$('files-pane').hidden}),openProject:id=>switchProject(id),activity:()=>window.desk.activity(),cancelChat:id=>window.desk.cancel(id),chooseFolder:()=>window.desk.chooseFolder(),saveProject:saveProjectWithFolder,refreshSource:refreshProjectFolder,openSourceFolder:id=>window.desk.openProjectSource(id),searchChats:query=>window.desk.searchChats(query),preview:showDocument,openChat,removeFile,importFiles,togglePane:toggleFiles};
 const chatDropPane=document.querySelector('main');
 const dropOverlay=el('div',null,'chat-drop-overlay');dropOverlay.id='chat-drop-overlay';dropOverlay.hidden=true;dropOverlay.setAttribute('aria-hidden','true');dropOverlay.append(el('strong','Drop documents here'),el('span','Attach privately to this chat · drag onto a project to share'),el('small','PDF, Word, text, Markdown or CSV · up to 40 MB each'));chatDropPane.append(dropOverlay);
 let dragDepth=0;

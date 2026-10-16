@@ -37,7 +37,7 @@ class ThreadStore {
     for(const thread of this.data.threads)delete thread.webEnabled;
     for (const thread of this.data.threads) {
       for (const message of thread.messages) {
-        if (message.status === 'running') {
+        if (['running','queued'].includes(message.status)) {
           message.status = 'interrupted';
           message.error = 'The app closed before this response finished. You can retry the request.';
           for (const activity of message.activities) if (activity.status === 'running') activity.status = 'interrupted';

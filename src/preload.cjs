@@ -1,5 +1,6 @@
 const {contextBridge,ipcRenderer,webUtils}=require('electron');
 contextBridge.exposeInMainWorld('desk',{
+ activity:()=>ipcRenderer.invoke('activity-list'),
  status:()=>ipcRenderer.invoke('status'),import:()=>ipcRenderer.invoke('import'),remove:id=>ipcRenderer.invoke('remove',id),
  searchChats:query=>ipcRenderer.invoke('chat-search',query),
  importDropped:(files,chatId)=>ipcRenderer.invoke('import-dropped',Array.from(files,file=>webUtils.getPathForFile(file)),chatId),

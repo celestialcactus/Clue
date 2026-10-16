@@ -37,7 +37,7 @@ function activitiesNode(message){
 }
 function appendMessage(message,index){
  const article=el('article',null,'message '+message.role);article.dataset.messageId=message.id;article.dataset.status=message.status;
- article.append(el('div',message.role==='user'?'You':'Desk Assistant','speaker'));
+ article.append(el('div',message.role==='user'?'You':'Clue','speaker'));
  if(message.role==='assistant')article.append(activitiesNode(message));
  if(message.role==='user'&&message.attachments?.length){const cards=el('div',null,'message-attachments');for(const file of message.attachments){const button=el('button',null,'sent-attachment');button.title=file.name;button.setAttribute('aria-label','Preview sent file '+file.name);button.append(attachmentIcon(),el('span',file.name));makeFileDraggable(button,file.id);button.onclick=()=>showDocument(file.id).catch(()=>notice('This file is no longer in the project. The original attachment name is preserved here.'));cards.append(button);}article.append(cards);}
  article.append(el('div',message.content,'body'));
@@ -139,7 +139,7 @@ divider.onpointermove=e=>{if(!dragging)return;const desired=window.innerWidth-e.
 function finishResize(e){if(!dragging)return;dragging=false;document.body.classList.remove('resizing');divider.classList.remove('will-collapse');if(divider.hasPointerCapture(e.pointerId))divider.releasePointerCapture(e.pointerId);if(collapseOnRelease){applyPaneWidth(dragStartWidth);toggleFiles(false);}else localStorage.setItem('preview-width',String(paneWidth));}
 divider.onpointerup=finishResize;divider.onpointercancel=finishResize;
 divider.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();applyPaneWidth(paneWidth+(e.key==='ArrowLeft'?24:-24));localStorage.setItem('preview-width',String(paneWidth));}else if(e.key==='Enter'){e.preventDefault();toggleFiles(false);$('toggle-files')?.focus();}};
-window.workspaceUI={snapshot:()=>({documents,chats,projectId,project:projects.find(p=>p.id===projectId),projectName:projects.find(p=>p.id===projectId)?.name||'Standalone chat',threadId:thread?.id,busy,paneOpen:!$('files-pane').hidden}),chooseFolder:()=>window.desk.chooseFolder(),saveProject:saveProjectWithFolder,refreshSource:refreshProjectFolder,openSourceFolder:id=>window.desk.openProjectSource(id),searchChats:query=>window.desk.searchChats(query),preview:showDocument,openChat,removeFile,importFiles,togglePane:toggleFiles};
+window.workspaceUI={snapshot:()=>({documents,chats,projectId,project:projects.find(p=>p.id===projectId),projectName:projects.find(p=>p.id===projectId)?.name||'Standalone chat',threadId:thread?.id,busy,paneOpen:!$('files-pane').hidden}),openProject:id=>switchProject(id),activity:()=>window.desk.activity(),chooseFolder:()=>window.desk.chooseFolder(),saveProject:saveProjectWithFolder,refreshSource:refreshProjectFolder,openSourceFolder:id=>window.desk.openProjectSource(id),searchChats:query=>window.desk.searchChats(query),preview:showDocument,openChat,removeFile,importFiles,togglePane:toggleFiles};
 const chatDropPane=document.querySelector('main');
 const dropOverlay=el('div',null,'chat-drop-overlay');dropOverlay.id='chat-drop-overlay';dropOverlay.hidden=true;dropOverlay.setAttribute('aria-hidden','true');dropOverlay.append(el('strong','Drop documents here'),el('span','Attach privately to this chat · drag onto a project to share'),el('small','PDF, Word, text, Markdown or CSV · up to 40 MB each'));chatDropPane.append(dropOverlay);
 let dragDepth=0;

@@ -2,7 +2,7 @@
   "name": "desk-assistant",
   "version": "0.3.0",
   "description": "Private local document and research assistant",
-  "author": "Desk Assistant",
+  "author": "Clue",
   "private": true,
   "main": "src/main.cjs",
   "scripts": {
@@ -39,7 +39,7 @@
   },
   "build": {
     "appId": "local.desk.assistant",
-    "productName": "Desk Assistant",
+    "productName": "Clue",
     "directories": {
       "output": "dist"
     },

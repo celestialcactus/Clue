@@ -58,6 +58,16 @@ class ThreadStore {
       .map(({id,title,updatedAt}) => ({id,title,updatedAt}));
   }
   recents(){return this.data.threads.filter(hasContext).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(({id,title,updatedAt,projectId})=>({id,title,updatedAt,projectId}));}
+  activityList(){
+    const items=[];
+    for(const thread of this.data.threads)for(const message of thread.messages){
+      if(message.role!=='assistant')continue;
+      const last=message.activities?.at(-1);
+      items.push({id:message.id,threadId:thread.id,title:thread.title,projectName:this.data.projects.find(p=>p.id===thread.projectId)?.name||'Standalone chat',status:message.status,detail:message.error||last?.label||'Response',time:message.completedAt||last?.finishedAt||last?.startedAt||message.createdAt});
+    }
+    for(const project of this.data.projects){const folder=project.sourceFolder;if(!folder)continue;items.push({id:'folder-'+folder.id,projectId:project.id,title:project.name+' · Source folder',projectName:project.name,status:folder.state==='indexing'?'running':folder.state==='ready'?'complete':'error',detail:folder.errors?.[0]||`${folder.count||0} files indexed`,time:folder.indexedAt||project.createdAt});}
+    return items.sort((a,b)=>(b.time||'').localeCompare(a.time||'')).slice(0,50);
+  }
   moveToProject(id,projectId){
     const thread=this.get(id),project=this.data.projects.find(p=>p.id===projectId);
     if(!thread||!project)throw Error('Conversation or project not found.');

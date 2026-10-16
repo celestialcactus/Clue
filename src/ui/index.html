@@ -1,9 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Desk Assistant</title><link rel="stylesheet" href="../../.renderer/components.css"><link rel="stylesheet" href="style.css"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Clue</title><link rel="stylesheet" href="../../.renderer/components.css"><link rel="stylesheet" href="style.css"></head>
 <body>
 <aside class="sidebar">
- <div class="brand"><span class="logo">d.</span><span>Desk Assistant</span></div>
- <div id="chat-search-root"></div>
+ <div class="brand"><span class="logo">c.</span><span class="brand-name">Clue</span><div id="activity-root"></div><div id="chat-search-root"></div></div>
  <button id="new" class="wide">＋ New conversation</button>
  <nav class="sidebar-navigation" aria-label="Projects and recent conversations">
  <div class="projects-label"><span class="section-label">Projects</span><button id="project-new" class="icon-button" title="New project" aria-label="New project">＋</button><button id="project-rename" class="icon-button" title="Rename active project" aria-label="Rename active project">⋯</button></div><div id="projects-tree" class="project-tree"></div><div class="recents-heading"><span class="section-label">Recents</span><button id="recent-new" class="icon-button" title="New conversation" aria-label="New conversation from Recents">＋</button></div><div id="recents" class="recent-list"></div></nav><p class="project-memory-hint">Drop a chat onto a project to share its history and files.</p>
@@ -19,7 +18,7 @@
   <div id="notice" class="notice" role="alert" hidden></div>
   <div class="thread-controls"><span id="thread-context">Project context</span><span id="context-usage"></span><span id="saved-state">Saved locally</span></div>
   <details id="research" class="research"><summary>Conversation context <span id="context-count"></span></summary><p id="memory-text"></p><p class="hint">Say “use only project files” to keep a request offline.</p><div class="references-heading">Saved web references <span id="source-count"></span><button id="clear-web" class="quiet">Clear</button></div><div id="web-results"></div></details>
-  <form id="composer"><div id="chat-attachments" aria-label="Files attached to this conversation" hidden></div><label for="prompt" class="sr-only">Your message</label><textarea id="prompt" rows="2" maxlength="4000" placeholder="Message Desk Assistant…"></textarea><div class="composer-bottom"><span id="progress" role="status"></span><button id="stop" type="button" hidden>Stop</button><button id="send" class="primary" type="submit" disabled>Send ↑</button></div></form>
+  <form id="composer"><div id="chat-attachments" aria-label="Files attached to this conversation" hidden></div><label for="prompt" class="sr-only">Your message</label><textarea id="prompt" rows="2" maxlength="4000" placeholder="Message Clue…"></textarea><div class="composer-bottom"><span id="progress" role="status"></span><button id="stop" type="button" hidden>Stop</button><button id="send" class="primary" type="submit" disabled>Send ↑</button></div></form>
   <p class="footnote">AI can make mistakes. Check important information.</p>
  </section>
 </main>

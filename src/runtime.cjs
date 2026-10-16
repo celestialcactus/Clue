@@ -4,7 +4,7 @@ class Runtime {
  constructor(root){this.root=root;this.contextSize=8192;this.tokenCounts=new Map();this.state='Starting local model…';this.key=randomBytes(32).toString('hex');}
  async start(){
   const exe=find(path.join(this.root,'runtime'),'llama-server.exe');const model=path.join(this.root,'model/model.gguf');
-  if(!exe||!fs.existsSync(model)){this.state='Model files are missing. Reinstall Desk Assistant.';return;}
+  if(!exe||!fs.existsSync(model)){this.state='Model files are missing. Reinstall Clue.';return;}
   const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.on('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
   this.url=`http://127.0.0.1:${port}`;
   this.child=spawn(exe,['-m',model,'--host','127.0.0.1','--port',String(port),'-c','8192','-t',String(Math.max(1,Math.min(4,os.availableParallelism()-1))),'-ngl','0','--parallel','1','--api-key',this.key,'--no-webui'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
@@ -16,7 +16,7 @@ class Runtime {
    try{const r=await fetch(this.url+'/health',{headers:{Authorization:'Bearer '+this.key},signal:AbortSignal.timeout(1000)});if(r.ok){this.ready=true;this.state='Ready · runs on this computer';return;}}catch{}
    await new Promise(r=>setTimeout(r,500));
   }
-  this.state='The model is taking too long to start. Close other apps and reopen Desk Assistant.'; this.child.kill();
+  this.state='The model is taking too long to start. Close other apps and reopen Clue.'; this.child.kill();
  }
  async post(endpoint,body,signal){const r=await fetch(this.url+endpoint,{method:'POST',signal,headers:{'Content-Type':'application/json',Authorization:'Bearer '+this.key},body:JSON.stringify(body)});if(!r.ok)throw Error('Local model utility failed: '+endpoint+' ('+r.status+')');return r.json();}
  async countMessages(messages,signal){const key=JSON.stringify(messages);if(this.tokenCounts.has(key))return this.tokenCounts.get(key);const {prompt}=await this.post('/apply-template',{messages},signal);const {tokens}=await this.post('/tokenize',{content:prompt,add_special:true,parse_special:true},signal);if(!Array.isArray(tokens))throw Error('Tokenizer returned no tokens.');const count=tokens.length;if(this.tokenCounts.size>80)this.tokenCounts.clear();this.tokenCounts.set(key,count);return count;}

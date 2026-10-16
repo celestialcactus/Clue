@@ -7,6 +7,9 @@ const {searchWeb,readWeb}=require('./web.cjs');
 const {randomUUID}=require('node:crypto');const {syncSourceFolder}=require('./source-folders.cjs');const folderChoices=new Map();
 const processStartedAt=Number(process.env.DESK_DEV_STARTED)||Date.now();
 let win,library,libraries,embedder,runtime,store,active,importing=false;
+// Keep the existing profile when changing the display/product name.
+const legacyProfiles=['Desk Assistant','desk-assistant'].map(name=>path.join(app.getPath('appData'),name));
+app.setPath('userData',legacyProfiles.find(dir=>fs.existsSync(path.join(dir,'threads.json')))||legacyProfiles[1]);app.setName('Clue');
 if(!app.isPackaged&&process.env.DESK_TEST_PROFILE)app.setPath('userData',path.resolve(process.env.DESK_TEST_PROFILE));
 const locked=app.requestSingleInstanceLock();
 if(!locked)app.quit();
@@ -25,11 +28,12 @@ if(locked)app.whenReady().then(()=>{
  if(!app.isPackaged&&process.env.DESK_DEV_RELOAD){const reloadFile=path.join(dir,'reload.request');let seen=processStartedAt;fs.watchFile(reloadFile,{interval:500},stat=>{if(stat.mtimeMs>seen){seen=stat.mtimeMs;app.quit();}});app.on('before-quit',()=>fs.unwatchFile(reloadFile));}
  session.defaultSession.setPermissionRequestHandler((_w,_p,cb)=>cb(false));
  session.defaultSession.webRequest.onBeforeRequest((details,callback)=>callback({cancel:!details.url.startsWith('file://')}));
- win=new BrowserWindow({width:1440,height:900,minWidth:950,minHeight:650,backgroundColor:'#f8f7f4',title:'Desk Assistant',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ win=new BrowserWindow({width:1440,height:900,minWidth:950,minHeight:650,backgroundColor:'#f8f7f4',title:'Clue',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
  win.loadFile(path.join(__dirname,'ui/index.html'));
  runtime.start().catch(e=>{runtime.state='Unable to start local model: '+e.message;});
  const handle=(name,fn)=>ipcMain.handle(name,async(event,...args)=>{if(event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame)throw Error('Unauthorized request');return fn(...args);});
+ handle('activity-list',()=>store.activityList());
  handle('status',()=>({ready:!!runtime.ready,state:runtime.state,model:'Qwen2.5 · 1.5B · Q4',retrievalState:embedder.state,documents:library.list(),chats:store.list(),activeId:store.data.activeId,projects:store.projectTree(),recents:store.recents(),activeProjectId:store.data.activeProjectId}));
  const folderChoice=token=>{if(!token)return null;const folderPath=folderChoices.get(token);if(!folderPath)throw Error('Choose the folder again.');if(!fs.statSync(folderPath).isDirectory())throw Error('Source folder is unavailable.');return {id:randomUUID(),path:folderPath,state:'pending',count:0,errors:[]};};
  const syncFolder=async project=>syncSourceFolder(project,libraries.getFolder(project.id,project.sourceFolder.id),{save:()=>store.save(),progress:event=>emit({type:'folder-progress',...event})});

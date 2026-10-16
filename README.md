@@ -1,4 +1,4 @@
-# Desk Assistant
+# Clue
 
 A local Windows chat app with project workspaces, document retrieval, public web research and a bounded multi-step agent. Inference and embeddings run on the CPU; no cloud inference endpoint is used.
 
@@ -39,7 +39,7 @@ For document-related research, the app first retrieves relevant passages, asks t
 
 Documents and conversation text are not uploaded wholesale. Public search queries, including topics derived from documents, do leave the machine. Identifier filtering reduces accidental disclosure but cannot recognize every confidential concept. Web search uses a public HTML endpoint and can be rate-limited or blocked; unreadable pages are clearly identified as snippets.
 
-Chat search is an icon above New conversation (Ctrl+K). The modal searches both titles and messages across standalone and project chats. Arrow keys, Enter, Escape and focus restoration are supported for both search dialogs.
+Chat search sits beside Clue in the sidebar header (Ctrl+K). The modal searches both titles and messages across standalone and project chats. Arrow keys, Enter, Escape and focus restoration are supported for both search dialogs.
 
 The interface uses locally bundled [shadcn/ui](https://ui.shadcn.com/docs/components/radix/dialog) Button, Input and Dialog components with Radix focus management and Lucide icons. Source components live in `src/ui/components/`, with their MIT license. React is used for these UI controls; the existing chat workflow remains behind the restricted IPC bridge. `npm run ui:build` compiles the local renderer using esbuild and Tailwind, and source launches rebuild it automatically. Generated assets are in `.renderer/`, excluded from Git. No remote UI resources are loaded.
 
@@ -130,3 +130,9 @@ Unit tests cover migration, project/thread isolation, notes, formats, retrieval 
 Target: Windows 10/11 x64 CPU. An 8 GB RAM computer with several GB free disk space is a provisional starting point, not a measured minimum. The small 1.5B model favors lower resource use over reasoning accuracy. Performance and quality still need testing on the intended computer. Scanned PDFs need OCR before import; legacy `.doc` and image OCR are not supported. Imports are limited to 40 MB. The router is deterministic, so unusual language may need rephrasing. This is a research assistant, not an automated compliance determination.
 
 Recents lists standalone and project conversations in update order. Hover project rows for New conversation and a menu (open, rename, new conversation); Recents also has a new-chat action. New chats clear the preview. Greetings skip document retrieval; only explicitly shared threads contribute project history. Substantive answers request fuller explanations and include a short supporting-passages section in the response instead of a separate evidence accordion.
+
+## Activity and concurrency
+
+The header bell opens recent response and folder-indexing activity, including running, completed, stopped, interrupted and failed states. A dot marks unseen completions or active work; opening Activity acknowledges updates locally. Entries are derived from saved chats and project index status. The display name is Clue; internal app identifiers and existing profile locations are retained for compatibility.
+
+The current runtime uses CPU inference with one generation slot. Chat navigation remains locked during a task. Recommended next step: independent chat navigation/drafts plus a queue backed by one inference worker, with per-request thread, project, library and cancellation state. Simultaneous model generation should be benchmarked on the target device before enabling it.

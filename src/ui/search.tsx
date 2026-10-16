@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import { Search, FileText, MessageSquare, Trash2, Plus, PanelRightClose, PanelRightOpen, Folder, FolderPlus, RefreshCw, X } from 'lucide-react'
+import { Search, FileText, MessageSquare, Trash2, Plus, PanelRightClose, PanelRightOpen, Folder, FolderPlus, RefreshCw, X, Bell, Check, CircleAlert, LoaderCircle, Square } from 'lucide-react'
 import { Button } from './components/button'
 import { Input } from './components/input'
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './components/dialog'
@@ -41,6 +41,27 @@ function PaneToggle(){const state=useWorkspace();return <Button id="toggle-files
 createRoot(document.getElementById('chat-search-root')!).render(<SearchDialog kind="chats"/>);
 createRoot(document.getElementById('file-tools-root')!).render(<FileTools/>);
 createRoot(document.getElementById('pane-toggle-root')!).render(<PaneToggle/>);
+
+function ActivityView(){
+ const state=useWorkspace(),[open,setOpen]=React.useState(false),[items,setItems]=React.useState<any[]>([]),[error,setError]=React.useState(''),[seen,setSeen]=React.useState(()=>Number(localStorage.getItem('clue-activity-seen'))||0);
+ React.useEffect(()=>{let disposed=false;const update=async()=>{try{const entries=await window.workspaceUI.activity();if(!disposed){setItems(entries);setError('')}}catch(e:any){if(!disposed)setError(e.message)}};update();const timer=setInterval(update,2000);return()=>{disposed=true;clearInterval(timer)}},[]);
+ React.useEffect(()=>{if(open){const time=Date.now();setSeen(time);localStorage.setItem('clue-activity-seen',String(time));}},[open,items]);
+ const unread=items.some(item=>item.status!=='running'&&Date.parse(item.time)>seen),running=items.filter(item=>item.status==='running').length;
+ async function show(item:any){try{if(item.threadId)await window.workspaceUI.openChat(item.threadId);else await window.workspaceUI.openProject(item.projectId);setOpen(false)}catch(e:any){setError(e.message)}}
+ return <Dialog open={open} onOpenChange={setOpen}>
+  <DialogTrigger asChild><Button id="activity-bell" type="button" variant="ghost" size="icon" title="Activity" aria-label={unread?'Activity, unread updates':'Activity'} className="activity-bell"><Bell/>{(unread||running>0)&&<span className={running?'activity-dot running':'activity-dot'} aria-hidden="true"/>}</Button></DialogTrigger>
+  <DialogContent className="activity-dialog sm:max-w-lg"><DialogHeader><DialogTitle>Activity</DialogTitle><DialogDescription>{running?`${running} task in progress`:'Recent responses and document indexing'}</DialogDescription></DialogHeader>
+   {error&&<p role="alert" className="source-error">{error}</p>}
+   <div className="activity-feed">{items.length?items.map(item=><div key={item.id} className="activity-item">
+    <span className={'activity-state '+item.status}>{item.status==='running'?<LoaderCircle size={16}/>:item.status==='complete'?<Check size={16}/>:item.status==='stopped'?<Square size={14}/>:<CircleAlert size={16}/>}</span>
+    <div className="activity-copy"><strong>{item.title}</strong><span>{item.projectName} · {({running:'In progress',complete:'Completed',error:'Needs attention',stopped:'Stopped',interrupted:'Interrupted'} as any)[item.status]||item.status}</span><p>{item.detail}</p><time>{new Date(item.time).toLocaleString()}</time></div>
+    <Button type="button" variant="ghost" size="sm" disabled={state.busy} onClick={()=>show(item)}>{item.threadId?'Open chat':'Open project'}</Button>
+   </div>):<p className="activity-empty">No activity yet. Responses and file indexing will appear here.</p>}</div>
+   {state.busy&&<p className="source-help">You can view activity while Clue works. Opening another chat is available when the current task finishes.</p>}
+  </DialogContent>
+ </Dialog>
+}
+createRoot(document.getElementById('activity-root')!).render(<ActivityView/>);
 
 function ProjectDialog(){
  const [open,setOpen]=React.useState(false),[project,setProject]=React.useState<any>(null),[name,setName]=React.useState(''),[folder,setFolder]=React.useState<any>(null),[pending,setPending]=React.useState(false),[choosing,setChoosing]=React.useState(false),[progress,setProgress]=React.useState(''),[error,setError]=React.useState('');

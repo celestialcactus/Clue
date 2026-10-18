@@ -1,0 +1,40 @@
+name: Build Mac preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run assets
+      - run: npm run assets:embeddings
+      - run: npm run build:mac -- --${{ matrix.arch }}
+      - name: Validate packaged app and local inference
+        run: node scripts/smoke-package.cjs
+      - name: Verify app signature and disk image
+        run: |
+          codesign --verify --deep --strict dist/mac*/Clue.app
+          hdiutil verify dist/*.dmg
+      - run: node scripts/package-share-mac.cjs
+      - name: Upload tested files to draft release
+        run: gh release upload v0.3.0-mac-preview dist/*.dmg dist/*.zip dist/*.sha256 --clobber

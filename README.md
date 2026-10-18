@@ -1,6 +1,6 @@
 # Clue
 
-A local Windows chat app with project workspaces, document retrieval, public web research and a bounded multi-step agent. Inference and embeddings run on the CPU; no cloud inference endpoint is used.
+A local Windows and macOS chat app with project workspaces, document retrieval, public web research and a bounded multi-step agent. Inference and embeddings run on the CPU; no cloud inference endpoint is used.
 
 ## Run from this repository
 
@@ -12,7 +12,7 @@ npm run dev
 
 This launches the desktop app directly from source, watches `src/` and restarts after edits. It keeps a separate, persistent development profile in `.dev-data/`, so chats and project files survive restarts. Ctrl+C stops the watcher and app. No installation or executable rebuild is needed. `npm start` also runs from source, without watching, using the normal application profile.
 
-For a fresh checkout, use Node.js 22 or newer on Windows:
+For a fresh checkout, use Node.js 22 or newer on Windows x64 or macOS (Apple Silicon or Intel):
 
 ```powershell
 npm ci
@@ -24,6 +24,8 @@ npm run dev
 Asset downloads happen only during developer setup. Runtime/model revisions and checksums are pinned in the two manifests under `assets/`. Large binaries, private profiles, test data and build output are excluded from Git. No remote Git repository is configured automatically.
 
 Build the Windows installer with `npm run build`. The output in `dist/` bundles the model, embeddings and inference runtime. For the 0.3.0 test release, share `dist/Clue-0.3.0-Windows-x64.zip`: extract it and run the included installer. No Node.js or separate model installation is needed. The installer is unsigned. Build output and local user data are excluded from GitHub; continue development with `npm run dev`.
+
+For macOS, run the same asset setup on a Mac of the target architecture, then `npm run build:mac`, `node scripts/smoke-package.cjs`, and `node scripts/package-share-mac.cjs`. The ZIP contains a DMG and setup instructions. Open the DMG and drag Clue into Applications. These preview builds are ad-hoc signed, not Apple-notarized; macOS may require approval in Privacy & Security. The GitHub workflow **Build Mac preview** builds and tests Apple Silicon and Intel separately on macOS 15 and uploads validated downloads to the draft `v0.3.0-mac-preview` release. It is manually triggered; publish the draft only after both builds pass. No private local profiles or documents are sent to CI.
 
 ## Using the app
 

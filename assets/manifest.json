@@ -9,5 +9,15 @@
     "revision": "91cad51170dc346986eccefdc2dd33a9da36ead9",
     "file": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
     "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+  },
+  "runtimes": {
+    "darwin-arm64": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-macos-arm64.tar.gz",
+      "sha256": "dbed55493d72bc1ba2babc8770d669c2289b5bc4ee9fb2a4dfc158d45b7d13fd"
+    },
+    "darwin-x64": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b11669/llama-b11669-bin-macos-x64.tar.gz",
+      "sha256": "cab28238d78158109b48deb27b05d50e0dcef56275d2e76da9ca8281526c7532"
+    }
   }
 }

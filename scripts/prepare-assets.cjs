@@ -30,9 +30,12 @@ async function hash(file){const h=crypto.createHash('sha256');for await(const b 
     manifest={runtime:{version:release.tag_name,url:asset.browser_download_url,sha256:asset.digest?.replace('sha256:','')},model:{repo,revision:model.sha,file:file.rfilename,sha256:file.lfs.sha256}};
     fs.writeFileSync(manifestFile,JSON.stringify(manifest,null,2));
   }
-  const zip=path.join(root,'downloads/runtime.zip');
-  await download(manifest.runtime.url,zip,manifest.runtime.sha256);
-  execFileSync('powershell.exe',['-NoProfile','-Command',`Expand-Archive -LiteralPath '${zip.replace(/'/g,"''")}' -DestinationPath '${path.join(root,'runtime').replace(/'/g,"''")}' -Force`]);
+  const runtime=process.platform==='win32'&&process.arch==='x64'?manifest.runtime:manifest.runtimes?.[process.platform+'-'+process.arch];
+  if(!runtime)throw Error('No pinned runtime for '+process.platform+'-'+process.arch);
+  const zip=path.join(root,'downloads',process.platform==='win32'?'runtime.zip':'runtime-'+process.arch+'.tar.gz');
+  await download(runtime.url,zip,runtime.sha256);
+  if(process.platform==='win32')execFileSync('powershell.exe',['-NoProfile','-Command',`Expand-Archive -LiteralPath '${zip.replace(/'/g,"''")}' -DestinationPath '${path.join(root,'runtime').replace(/'/g,"''")}' -Force`]);
+  else execFileSync('tar',['-xzf',zip,'-C',path.join(root,'runtime')]);
   await download(`https://huggingface.co/${manifest.model.repo}/resolve/${manifest.model.revision}/${manifest.model.file}`,path.join(root,'model/model.gguf'),manifest.model.sha256);
   await download(`https://huggingface.co/${manifest.model.repo}/resolve/${manifest.model.revision}/LICENSE`,path.join(root,'model/LICENSE'));
   await download(`https://raw.githubusercontent.com/ggml-org/llama.cpp/${manifest.runtime.version}/LICENSE`,path.join(root,'runtime/LICENSE'));

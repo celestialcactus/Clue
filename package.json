@@ -12,7 +12,8 @@
     "assets": "node scripts/prepare-assets.cjs",
     "assets:embeddings": "node scripts/prepare-embeddings.cjs",
     "build": "npm run ui:build && node scripts/check-assets.cjs && electron-builder --win nsis --x64",
-    "ui:build": "node scripts/build-ui.cjs"
+    "ui:build": "node scripts/build-ui.cjs",
+    "build:mac": "npm run ui:build && node scripts/check-assets.cjs && electron-builder --mac dmg --publish never"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",
@@ -73,6 +74,15 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "deleteAppDataOnUninstall": false
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "identity": "-",
+      "hardenedRuntime": true,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "artifactName": "Clue-${version}-macOS-${arch}.${ext}"
     }
   }
 }

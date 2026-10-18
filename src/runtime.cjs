@@ -3,7 +3,7 @@ function find(dir,name){if(!fs.existsSync(dir))return;for(const e of fs.readdirS
 class Runtime {
  constructor(root){this.root=root;this.contextSize=8192;this.tokenCounts=new Map();this.state='Starting local model…';this.key=randomBytes(32).toString('hex');}
  async start(){
-  const exe=find(path.join(this.root,'runtime'),'llama-server.exe');const model=path.join(this.root,'model/model.gguf');
+  const exe=find(path.join(this.root,'runtime'),process.platform==='win32'?'llama-server.exe':'llama-server');const model=path.join(this.root,'model/model.gguf');
   if(!exe||!fs.existsSync(model)){this.state='Model files are missing. Reinstall Clue.';return;}
   const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.on('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
   this.url=`http://127.0.0.1:${port}`;

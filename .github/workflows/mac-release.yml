@@ -1,6 +1,12 @@
 name: Build Mac preview
 on:
   workflow_dispatch:
+    inputs:
+      architecture:
+        type: choice
+        default: both
+        options: [both, arm64, x64]
+        description: Mac architecture to build
 permissions:
   contents: write
 jobs:
@@ -8,12 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-          - runner: macos-15-intel
-            arch: x64
-    runs-on: ${{ matrix.runner }}
+        arch: ${{ fromJSON(inputs.architecture == 'arm64' && '["arm64"]' || inputs.architecture == 'x64' && '["x64"]' || '["arm64","x64"]') }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'macos-15' || 'macos-15-intel' }}
     timeout-minutes: 45
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -25,9 +27,12 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: node scripts/prepare-mac-intel.cjs
       - run: npm test
       - run: npm run assets
       - run: npm run assets:embeddings
+      - name: Check native embeddings before packaging
+        run: node -e "const {Embeddings}=require('./src/embeddings.cjs');const m=new Embeddings(require('path').resolve('assets'));m.encode('Local document test').then(v=>{if(v.length!==384)throw Error('Invalid embedding');return m.dispose()}).catch(e=>{console.error(e);process.exitCode=1})"
       - run: npm run build:mac -- --${{ matrix.arch }}
       - name: Validate packaged app and local inference
         run: node scripts/smoke-package.cjs

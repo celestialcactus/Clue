@@ -16,6 +16,7 @@ For a fresh checkout, use Node.js 22 or newer on Windows x64 or macOS (Apple Sil
 
 ```powershell
 npm ci
+node scripts/prepare-mac-intel.cjs
 npm run assets
 npm run assets:embeddings
 npm run dev
@@ -25,7 +26,7 @@ Asset downloads happen only during developer setup. Runtime/model revisions and 
 
 Build the Windows installer with `npm run build`. The output in `dist/` bundles the model, embeddings and inference runtime. For the 0.3.0 test release, share `dist/Clue-0.3.0-Windows-x64.zip`: extract it and run the included installer. No Node.js or separate model installation is needed. The installer is unsigned. Build output and local user data are excluded from GitHub; continue development with `npm run dev`.
 
-For macOS, run the same asset setup on a Mac of the target architecture, then `npm run build:mac`, `node scripts/smoke-package.cjs`, and `node scripts/package-share-mac.cjs`. The ZIP contains a DMG and setup instructions. Open the DMG and drag Clue into Applications. These preview builds are ad-hoc signed, not Apple-notarized; macOS may require approval in Privacy & Security. The GitHub workflow **Build Mac preview** builds and tests Apple Silicon and Intel separately on macOS 15 and uploads validated downloads to the draft `v0.3.0-mac-preview` release. It is manually triggered; publish the draft only after both builds pass. No private local profiles or documents are sent to CI.
+For macOS, run the same asset setup on a Mac of the target architecture, then `npm run build:mac`, `node scripts/smoke-package.cjs`, and `node scripts/package-share-mac.cjs`. On Intel Mac only, the setup helper pins ONNX Runtime to 1.22.0 in the local package manifest and lockfile because later upstream packages omit its Intel binary. Apple Silicon and Windows keep the current runtime. The ZIP contains a DMG and setup instructions. Open the DMG and drag Clue into Applications. These preview builds are ad-hoc signed, not Apple-notarized; macOS may require approval in Privacy & Security. The GitHub workflow **Build Mac preview** builds and tests Apple Silicon and Intel separately on macOS 15 and uploads validated downloads to the draft `v0.3.0-mac-preview` release. It is manually triggered; publish the draft only after both builds pass. No private local profiles or documents are sent to CI.
 
 ## Using the app
 
